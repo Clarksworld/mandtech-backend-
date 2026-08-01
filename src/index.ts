@@ -33,10 +33,17 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+import swaggerUi from 'swagger-ui-express';
+import { swaggerDocument } from './swagger';
+
 // ── Health check ──────────────────────────────────────────
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// ── Swagger UI Documentation ──────────────────────────────
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // ── Public routes ─────────────────────────────────────────
 app.use('/api/auth',      authRouter);
