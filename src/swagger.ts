@@ -124,6 +124,31 @@ export const swaggerDocument = {
         }
       }
     },
+    '/api/auth/create-admin': {
+      post: {
+        summary: 'Create New Admin User (Registration)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['email', 'password'],
+                properties: {
+                  email: { type: 'string', example: 'newadmin@mandtech.com.ng' },
+                  password: { type: 'string', example: 'SuperSecurePassword123' },
+                  role: { type: 'string', enum: ['admin', 'staff'], default: 'admin' }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          201: { description: 'Admin user created successfully, returns JWT token' },
+          409: { description: 'User with this email already exists' }
+        }
+      }
+    },
     '/api/products': {
       get: {
         summary: 'List products with filters',
