@@ -4,16 +4,41 @@
   "description": "Mandtech Services REST API — powers the customer site and admin dashboard",
   "main": "dist/index.js",
   "scripts": {
-    "dev":   "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc && cp src/db/*.sql dist/db/",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
     "start": "node dist/index.js",
     "db:init": "ts-node -e \"require('./src/db').initDb()\"",
     "db:seed": "SEED_DB=true ts-node -e \"require('./src/db').initDb()\""
   },
-  "keywords": ["mandtech", "api", "express", "typescript"],
+  "keywords": [
+    "mandtech",
+    "api",
+    "express",
+    "typescript"
+  ],
   "author": "Mandtech Services",
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^20.10.0",
+    "@types/pg": "^8.11.10",
+    "@types/uuid": "^10.0.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-async-errors": "^3.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.1",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3",
+    "uuid": "^10.0.0",
+    "zod": "^3.23.8"
   }
 }

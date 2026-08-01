@@ -60,18 +60,14 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: 'Internal server error', message: err.message });
 });
 
-// ── Start ─────────────────────────────────────────────────
-async function start() {
-  await initDb();
+// ── Start / Export ─────────────────────────────────────────
+initDb().catch((err) => console.error('Failed to init DB:', err));
+
+if (!process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`🚀 Mandtech API running on port ${PORT}`);
     console.log(`   Health: http://localhost:${PORT}/health`);
   });
 }
-
-start().catch((err) => {
-  console.error('Failed to start server:', err);
-  process.exit(1);
-});
 
 export default app;
