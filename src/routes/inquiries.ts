@@ -92,4 +92,38 @@ router.put('/admin/:id/status', async (req: Request, res: Response) => {
   res.json({ data: result.rows[0] });
 });
 
+// ── Admin: PUT /api/admin/inquiries/:id/assign ────────────
+// Body: { user_id: string } — pass null to unassign
+router.put('/admin/:id/assign', async (req: Request, res: Response) => {
+  const { user_id } = req.body as { user_id: string | null };
+
+  // Look up the user name if assigning
+  let assignedName: string | null = null;
+  if (user_id) {
+    const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [user_id]);
+    if (!userResult.rows[0]) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    assignedName = userResult.rows[0].email;
+  }
+
+  const result = await pool.query(
+    `UPDATE inquiries
+     SET assigned_to = $1, assigned_name = $2, status = CASE WHEN $1 IS NOT NULL AND status = 'new' THEN 'in_review' ELSE status END, updated_at = NOW()
+     WHERE id = $3 RETURNING *`,
+    [user_id ?? null, assignedName, req.params.id]
+  );
+
+  if (!result.rows[0]) {
+    res.status(404).json({ error: 'Inquiry not found' });
+    return;
+  }
+
+  res.json({
+    message: user_id ? `Inquiry assigned to ${assignedName}` : 'Inquiry unassigned',
+    data: result.rows[0],
+  });
+});
+
 export default router;

@@ -13,6 +13,8 @@ import inquiriesRouter from './routes/inquiries';
 import ticketsRouter   from './routes/tickets';
 import documentsRouter from './routes/documents';
 import adminRouter     from './routes/admin';
+import invoicesRouter  from './routes/invoices';
+import projectsRouter  from './routes/projects';
 
 dotenv.config();
 
@@ -101,6 +103,8 @@ app.use('/api/admin/parts',     requireAuth, partsRouter);
 app.use('/api/admin/inquiries', requireAuth, inquiriesRouter);
 app.use('/api/admin/tickets',   requireAuth, ticketsRouter);
 app.use('/api/admin/documents', requireAuth, documentsRouter);
+app.use('/api/admin/invoices',  requireAuth, invoicesRouter);
+app.use('/api/admin/projects',  requireAuth, projectsRouter);
 app.use('/api/admin',           requireAuth, adminRouter);
 
 // ── Global error handler ──────────────────────────────────
