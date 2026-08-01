@@ -32,8 +32,6 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-import swaggerUi from 'swagger-ui-express';
 import { swaggerDocument } from './swagger';
 
 // ── Health check ──────────────────────────────────────────
@@ -41,9 +39,53 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// ── Swagger UI Documentation ──────────────────────────────
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+// ── Swagger UI & OpenAPI Specification ───────────────────
+app.get('/swagger.json', (_req, res) => {
+  res.json(swaggerDocument);
+});
+
+const swaggerHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mandtech Services API Documentation</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  <link rel="icon" type="image/png" href="https://unpkg.com/swagger-ui-dist@5/favicon-32x32.png" />
+  <style>
+    html { box-sizing: border-box; overflow-y: scroll; }
+    *, *:before, *:after { box-sizing: inherit; }
+    body { margin: 0; background: #fafafa; }
+    .swagger-ui .topbar { background-color: #111827; }
+  </style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js" charset="UTF-8"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js" charset="UTF-8"></script>
+  <script>
+    window.onload = function() {
+      window.ui = SwaggerUIBundle({
+        spec: ${JSON.stringify(swaggerDocument)},
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        plugins: [
+          SwaggerUIBundle.plugins.DownloadUrl
+        ],
+        layout: "StandaloneLayout"
+      });
+    };
+  </script>
+</body>
+</html>
+`;
+
+app.get('/docs', (_req, res) => res.send(swaggerHtml));
+app.get('/api-docs', (_req, res) => res.send(swaggerHtml));
 
 // ── Public routes ─────────────────────────────────────────
 app.use('/api/auth',      authRouter);
