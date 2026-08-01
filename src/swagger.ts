@@ -88,6 +88,56 @@ export const swaggerDocument = {
           urgency: { type: 'string', enum: ['Standard Route', 'High Priority', 'Emergency Site Breakdown'] },
           authorize_dispatch: { type: 'boolean', example: true }
         }
+      },
+      InvoiceLineItem: {
+        type: 'object',
+        required: ['description', 'qty', 'unit_price'],
+        properties: {
+          description: { type: 'string', example: 'Mandtech MT-500 Heavy Duty Compressor' },
+          qty: { type: 'number', example: 1 },
+          unit_price: { type: 'number', example: 12450 }
+        }
+      },
+      Invoice: {
+        type: 'object',
+        required: ['company', 'contact_name', 'email', 'line_items'],
+        properties: {
+          company: { type: 'string', example: 'Apex Manufacturing Ltd.' },
+          contact_name: { type: 'string', example: 'Sarah Jenkins' },
+          email: { type: 'string', example: 's.jenkins@apex-mfg.com' },
+          billing_address: { type: 'string', example: '44 Industrial Parkway, North Wing' },
+          line_items: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/InvoiceLineItem' }
+          },
+          discount_pct: { type: 'number', example: 5 },
+          vat_rate_pct: { type: 'number', example: 7.5 },
+          delivery_terms: { type: 'string', example: 'EXW - Ex Works' },
+          currency: { type: 'string', example: 'NGN' },
+          notes: { type: 'string', example: 'Net 30 days payment terms.' },
+          status: { type: 'string', enum: ['draft', 'sent', 'paid', 'cancelled'], default: 'draft' }
+        }
+      },
+      Project: {
+        type: 'object',
+        required: ['title'],
+        properties: {
+          title: { type: 'string', example: 'Quarterly Fleet Maintenance' },
+          description: { type: 'string', example: 'Scheduled maintenance for Sector 4 compressors' },
+          status: { type: 'string', enum: ['active', 'completed', 'on_hold', 'cancelled'], default: 'active' }
+        }
+      },
+      Task: {
+        type: 'object',
+        required: ['title'],
+        properties: {
+          title: { type: 'string', example: 'Inventory Audit - Sector 4' },
+          description: { type: 'string', example: 'Audit air compressor spares' },
+          status: { type: 'string', enum: ['backlog', 'in_progress', 'review', 'done'], default: 'backlog' },
+          assigned_to: { type: 'string', format: 'uuid', nullable: true },
+          assigned_name: { type: 'string', nullable: true, example: 'Alex Rivera' },
+          due_date: { type: 'string', format: 'date', nullable: true, example: '2026-08-15' }
+        }
       }
     }
   },
@@ -102,7 +152,7 @@ export const swaggerDocument = {
     },
     '/api/auth/login': {
       post: {
-        summary: 'Admin & Staff Login',
+        summary: 'Staff & Admin Login',
         requestBody: {
           required: true,
           content: {
@@ -120,13 +170,13 @@ export const swaggerDocument = {
         },
         responses: {
           200: { description: 'Login successful, returns JWT bearer token' },
-          401: { description: 'Invalid email or password' }
+          401: { description: 'Invalid credentials' }
         }
       }
     },
     '/api/auth/create-admin': {
       post: {
-        summary: 'Create New Admin User (Registration)',
+        summary: 'Register New Admin/Staff User',
         requestBody: {
           required: true,
           content: {
@@ -135,106 +185,94 @@ export const swaggerDocument = {
                 type: 'object',
                 required: ['email', 'password'],
                 properties: {
-                  email: { type: 'string', example: 'newadmin@mandtech.com.ng' },
-                  password: { type: 'string', example: 'SuperSecurePassword123' },
-                  role: { type: 'string', enum: ['admin', 'staff'], default: 'admin' }
+                  email: { type: 'string', example: 'engineer@mandtech.com.ng' },
+                  password: { type: 'string', example: 'securePassword123' },
+                  role: { type: 'string', enum: ['admin', 'staff'], default: 'staff' }
                 }
               }
             }
           }
         },
         responses: {
-          201: { description: 'Admin user created successfully, returns JWT token' },
-          409: { description: 'User with this email already exists' }
+          201: { description: 'Admin user created successfully' },
+          400: { description: 'Validation error or email exists' }
         }
       }
     },
     '/api/products': {
       get: {
-        summary: 'List products with filters',
+        summary: 'Browse Equipment Catalog',
         parameters: [
           { name: 'category', in: 'query', schema: { type: 'string' } },
           { name: 'brand', in: 'query', schema: { type: 'string' } },
-          { name: 'driven', in: 'query', schema: { type: 'string' } },
-          { name: 'maxCapacity', in: 'query', schema: { type: 'integer' } },
-          { name: 'sort', in: 'query', schema: { type: 'string', enum: ['capacity-asc', 'capacity-desc'] } }
+          { name: 'driven_type', in: 'query', schema: { type: 'string' } },
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 12 } }
         ],
         responses: {
-          200: { description: 'List of active equipment' }
+          200: { description: 'Filtered list of products' }
         }
       }
     },
     '/api/products/{id}': {
       get: {
-        summary: 'Get single product details',
+        summary: 'Get Product Detail',
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
-          200: { description: 'Product detail' },
+          200: { description: 'Product details' },
           404: { description: 'Product not found' }
         }
       }
     },
     '/api/parts': {
       get: {
-        summary: 'List spare parts catalog with filters and search',
+        summary: 'Browse Spare Parts Catalog',
         parameters: [
           { name: 'category', in: 'query', schema: { type: 'string' } },
           { name: 'brand', in: 'query', schema: { type: 'string' } },
           { name: 'condition', in: 'query', schema: { type: 'string' } },
           { name: 'search', in: 'query', schema: { type: 'string' } },
-          { name: 'sort', in: 'query', schema: { type: 'string', enum: ['sku-asc', 'brand-asc'] } }
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 12 } }
         ],
         responses: {
-          200: { description: 'List of matching spare parts' }
-        }
-      }
-    },
-    '/api/parts/{id}': {
-      get: {
-        summary: 'Get single part detail',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: {
-          200: { description: 'Part detail' },
-          404: { description: 'Part not found' }
+          200: { description: 'Filtered list of parts' }
         }
       }
     },
     '/api/inquiries': {
       post: {
-        summary: 'Submit Contact / Commercial Proposal Inquiry',
+        summary: 'Submit RFQ / Inquiry Form',
         requestBody: {
           required: true,
           content: {
-            'application/json': {
-              schema: { $ref: '#/components/schemas/Inquiry' }
-            }
+            'application/json': { schema: { $ref: '#/components/schemas/Inquiry' } }
           }
         },
         responses: {
-          201: { description: 'Inquiry submitted' }
+          201: { description: 'Inquiry received' }
         }
       }
     },
     '/api/tickets': {
       post: {
-        summary: 'Submit After-Sales Service Intake Ticket',
+        summary: 'Submit Service Ticket Intake',
         requestBody: {
           required: true,
           content: {
-            'application/json': {
-              schema: { $ref: '#/components/schemas/ServiceTicket' }
-            }
+            'application/json': { schema: { $ref: '#/components/schemas/ServiceTicket' } }
           }
         },
         responses: {
-          201: { description: 'Service ticket generated (returns ticket_id format MT-xxxxxx)' }
+          201: { description: 'Service ticket generated' }
         }
       }
     },
     '/api/tickets/{id}': {
       get: {
-        summary: 'Track Service Ticket & View Time Logs',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' }, example: 'MT-824021' }],
+        summary: 'Track Service Ticket Status & Logs',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
           200: { description: 'Ticket status and timeline logs' },
           404: { description: 'Ticket not found' }
@@ -243,9 +281,9 @@ export const swaggerDocument = {
     },
     '/api/documents': {
       get: {
-        summary: 'List Technical Library Documents & SOP Checklist PDFs',
+        summary: 'List Technical Library Documents',
         responses: {
-          200: { description: 'Document list' }
+          200: { description: 'Active technical documents' }
         }
       }
     },
@@ -299,6 +337,229 @@ export const swaggerDocument = {
         ],
         responses: {
           200: { description: 'Inquiries list' }
+        }
+      }
+    },
+    '/api/admin/inquiries/{id}/assign': {
+      put: {
+        summary: 'Assign / Claim Inquiry Lead',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  user_id: { type: 'string', format: 'uuid', nullable: true, description: 'User ID to assign or null to unassign' }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: { description: 'Inquiry assigned' }
+        }
+      }
+    },
+    '/api/admin/invoices': {
+      get: {
+        summary: 'List All Invoices / Quotations',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['draft', 'sent', 'paid', 'cancelled'] } },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } }
+        ],
+        responses: {
+          200: { description: 'Invoices list' }
+        }
+      },
+      post: {
+        summary: 'Create New Invoice / Quotation',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/Invoice' } }
+          }
+        },
+        responses: {
+          201: { description: 'Invoice created' }
+        }
+      }
+    },
+    '/api/admin/invoices/{id}': {
+      get: {
+        summary: 'Get Invoice Details',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: { description: 'Invoice detail' }
+        }
+      },
+      put: {
+        summary: 'Update Invoice',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/Invoice' } }
+          }
+        },
+        responses: {
+          200: { description: 'Invoice updated' }
+        }
+      },
+      delete: {
+        summary: 'Cancel Invoice',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: { description: 'Invoice cancelled' }
+        }
+      }
+    },
+    '/api/admin/invoices/{id}/status': {
+      put: {
+        summary: 'Update Invoice Status',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  status: { type: 'string', enum: ['draft', 'sent', 'paid', 'cancelled'] }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: { description: 'Status updated' }
+        }
+      }
+    },
+    '/api/admin/projects': {
+      get: {
+        summary: 'List All Projects with Task Counters',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['active', 'completed', 'on_hold', 'cancelled'] } }
+        ],
+        responses: {
+          200: { description: 'Projects list' }
+        }
+      },
+      post: {
+        summary: 'Create Project',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/Project' } }
+          }
+        },
+        responses: {
+          201: { description: 'Project created' }
+        }
+      }
+    },
+    '/api/admin/projects/{id}': {
+      get: {
+        summary: 'Get Project Details & Tasks',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: { description: 'Project detail with tasks' }
+        }
+      },
+      put: {
+        summary: 'Update Project',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/Project' } }
+          }
+        },
+        responses: {
+          200: { description: 'Project updated' }
+        }
+      },
+      delete: {
+        summary: 'Cancel Project',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: { description: 'Project cancelled' }
+        }
+      }
+    },
+    '/api/admin/projects/{id}/tasks': {
+      get: {
+        summary: 'List Tasks for a Project',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: { description: 'Tasks list' }
+        }
+      },
+      post: {
+        summary: 'Create Task in Project',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/Task' } }
+          }
+        },
+        responses: {
+          201: { description: 'Task created' }
+        }
+      }
+    },
+    '/api/admin/tasks/{taskId}': {
+      put: {
+        summary: 'Update Task',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'taskId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/Task' } }
+          }
+        },
+        responses: {
+          200: { description: 'Task updated' }
+        }
+      },
+      delete: {
+        summary: 'Delete Task',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'taskId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: { description: 'Task deleted' }
+        }
+      }
+    },
+    '/api/admin/tasks/all': {
+      get: {
+        summary: 'List All Tasks (Flat View)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['backlog', 'in_progress', 'review', 'done'] } },
+          { name: 'assigned_to', in: 'query', schema: { type: 'string', format: 'uuid' } }
+        ],
+        responses: {
+          200: { description: 'All tasks list' }
         }
       }
     },
