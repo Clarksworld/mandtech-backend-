@@ -1,0 +1,19 @@
+{
+  "name": "mandtech-backend",
+  "version": "1.0.0",
+  "description": "Mandtech Services REST API — powers the customer site and admin dashboard",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev":   "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc && cp src/db/*.sql dist/db/",
+    "start": "node dist/index.js",
+    "db:init": "ts-node -e \"require('./src/db').initDb()\"",
+    "db:seed": "SEED_DB=true ts-node -e \"require('./src/db').initDb()\""
+  },
+  "keywords": ["mandtech", "api", "express", "typescript"],
+  "author": "Mandtech Services",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
