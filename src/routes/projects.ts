@@ -4,6 +4,7 @@ import { pool } from '../db';
 import { validate } from '../middleware/validate';
 
 const router = Router();
+export const tasksRouter = Router();
 
 // ── Schemas ───────────────────────────────────────────────
 const projectSchema = z.object({
@@ -21,8 +22,73 @@ const taskSchema = z.object({
   due_date:      z.string().optional().nullable(),
 });
 
+// ── Common Task Handlers ──────────────────────────────────
+const getAllTasksHandler = async (req: Request, res: Response) => {
+  const { status, assigned_to } = req.query;
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  let idx = 1;
+
+  if (status) {
+    conditions.push(`t.status = $${idx++}`);
+    params.push(status);
+  }
+  if (assigned_to) {
+    conditions.push(`t.assigned_to = $${idx++}`);
+    params.push(assigned_to);
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const result = await pool.query(
+    `SELECT t.*, p.title AS project_title
+     FROM tasks t
+     LEFT JOIN projects p ON p.id = t.project_id
+     ${where}
+     ORDER BY t.created_at DESC`,
+    params
+  );
+  res.json({ data: result.rows, total: result.rowCount });
+};
+
+const updateTaskHandler = async (req: Request, res: Response) => {
+  const d = req.body as z.infer<typeof taskSchema>;
+
+  let assignedName = d.assigned_name ?? null;
+  if (d.assigned_to && !assignedName) {
+    const user = await pool.query('SELECT email FROM users WHERE id = $1', [d.assigned_to]);
+    assignedName = user.rows[0]?.email ?? null;
+  }
+
+  const result = await pool.query(
+    `UPDATE tasks SET
+       title=$1, description=$2, status=$3,
+       assigned_to=$4, assigned_name=$5, due_date=$6,
+       updated_at=NOW()
+     WHERE id=$7 RETURNING *`,
+    [d.title, d.description, d.status,
+     d.assigned_to ?? null, assignedName, d.due_date ?? null,
+     req.params.taskId]
+  );
+  if (!result.rows[0]) {
+    res.status(404).json({ error: 'Task not found' });
+    return;
+  }
+  res.json({ data: result.rows[0] });
+};
+
+const deleteTaskHandler = async (req: Request, res: Response) => {
+  await pool.query('DELETE FROM tasks WHERE id = $1', [req.params.taskId]);
+  res.json({ message: 'Task deleted' });
+};
+
+// ── Register Task Routes on tasksRouter (/api/admin/tasks) ─
+tasksRouter.get(['/', '/all', '/tasks/all'], getAllTasksHandler);
+tasksRouter.put(['/:taskId', '/tasks/:taskId'], validate(taskSchema), updateTaskHandler);
+tasksRouter.delete(['/:taskId', '/tasks/:taskId'], deleteTaskHandler);
+
 // ── Admin: GET /api/admin/projects ────────────────────────
-router.get('/admin', async (req: Request, res: Response) => {
+router.get(['/', '/admin'], async (req: Request, res: Response) => {
   const { status } = req.query;
   let where = '';
   const params: unknown[] = [];
@@ -49,8 +115,23 @@ router.get('/admin', async (req: Request, res: Response) => {
   res.json({ data: result.rows, total: result.rowCount });
 });
 
+// ── Admin: POST /api/admin/projects ──────────────────────
+router.post(['/', '/admin'], validate(projectSchema), async (req: Request, res: Response) => {
+  const d = req.body as z.infer<typeof projectSchema>;
+  const result = await pool.query(
+    `INSERT INTO projects (title, description, status) VALUES ($1,$2,$3) RETURNING *`,
+    [d.title, d.description, d.status]
+  );
+  res.status(201).json({ data: result.rows[0] });
+});
+
+// ── Admin: Task routes on projectsRouter (/api/admin/projects/tasks)
+router.get(['/tasks/all', '/admin/tasks/all'], getAllTasksHandler);
+router.put(['/tasks/:taskId', '/admin/tasks/:taskId'], validate(taskSchema), updateTaskHandler);
+router.delete(['/tasks/:taskId', '/admin/tasks/:taskId'], deleteTaskHandler);
+
 // ── Admin: GET /api/admin/projects/:id ───────────────────
-router.get('/admin/:id', async (req: Request, res: Response) => {
+router.get(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
   const project = await pool.query('SELECT * FROM projects WHERE id = $1', [req.params.id]);
   if (!project.rows[0]) {
     res.status(404).json({ error: 'Project not found' });
@@ -63,18 +144,8 @@ router.get('/admin/:id', async (req: Request, res: Response) => {
   res.json({ data: { ...project.rows[0], tasks: tasks.rows } });
 });
 
-// ── Admin: POST /api/admin/projects ──────────────────────
-router.post('/admin', validate(projectSchema), async (req: Request, res: Response) => {
-  const d = req.body as z.infer<typeof projectSchema>;
-  const result = await pool.query(
-    `INSERT INTO projects (title, description, status) VALUES ($1,$2,$3) RETURNING *`,
-    [d.title, d.description, d.status]
-  );
-  res.status(201).json({ data: result.rows[0] });
-});
-
 // ── Admin: PUT /api/admin/projects/:id ───────────────────
-router.put('/admin/:id', validate(projectSchema), async (req: Request, res: Response) => {
+router.put(['/:id', '/admin/:id'], validate(projectSchema), async (req: Request, res: Response) => {
   const d = req.body as z.infer<typeof projectSchema>;
   const result = await pool.query(
     `UPDATE projects SET title=$1, description=$2, status=$3, updated_at=NOW()
@@ -89,13 +160,13 @@ router.put('/admin/:id', validate(projectSchema), async (req: Request, res: Resp
 });
 
 // ── Admin: DELETE /api/admin/projects/:id ────────────────
-router.delete('/admin/:id', async (req: Request, res: Response) => {
+router.delete(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
   await pool.query("UPDATE projects SET status='cancelled', updated_at=NOW() WHERE id=$1", [req.params.id]);
   res.json({ message: 'Project cancelled' });
 });
 
 // ── Admin: GET /api/admin/projects/:id/tasks ─────────────
-router.get('/admin/:id/tasks', async (req: Request, res: Response) => {
+router.get(['/:id/tasks', '/admin/:id/tasks'], async (req: Request, res: Response) => {
   const result = await pool.query(
     'SELECT * FROM tasks WHERE project_id = $1 ORDER BY created_at ASC',
     [req.params.id]
@@ -104,7 +175,7 @@ router.get('/admin/:id/tasks', async (req: Request, res: Response) => {
 });
 
 // ── Admin: POST /api/admin/projects/:id/tasks ────────────
-router.post('/admin/:id/tasks', validate(taskSchema), async (req: Request, res: Response) => {
+router.post(['/:id/tasks', '/admin/:id/tasks'], validate(taskSchema), async (req: Request, res: Response) => {
   const d = req.body as z.infer<typeof taskSchema>;
 
   // Resolve assigned_name from user if user_id given but name not provided
@@ -121,68 +192,6 @@ router.post('/admin/:id/tasks', validate(taskSchema), async (req: Request, res: 
      d.assigned_to ?? null, assignedName, d.due_date ?? null]
   );
   res.status(201).json({ data: result.rows[0] });
-});
-
-// ── Admin: PUT /api/admin/tasks/:taskId ──────────────────
-router.put('/admin/tasks/:taskId', validate(taskSchema), async (req: Request, res: Response) => {
-  const d = req.body as z.infer<typeof taskSchema>;
-
-  let assignedName = d.assigned_name ?? null;
-  if (d.assigned_to && !assignedName) {
-    const user = await pool.query('SELECT email FROM users WHERE id = $1', [d.assigned_to]);
-    assignedName = user.rows[0]?.email ?? null;
-  }
-
-  const result = await pool.query(
-    `UPDATE tasks SET
-       title=$1, description=$2, status=$3,
-       assigned_to=$4, assigned_name=$5, due_date=$6,
-       updated_at=NOW()
-     WHERE id=$7 RETURNING *`,
-    [d.title, d.description, d.status,
-     d.assigned_to ?? null, assignedName, d.due_date ?? null,
-     req.params.taskId]
-  );
-  if (!result.rows[0]) {
-    res.status(404).json({ error: 'Task not found' });
-    return;
-  }
-  res.json({ data: result.rows[0] });
-});
-
-// ── Admin: DELETE /api/admin/tasks/:taskId ───────────────
-router.delete('/admin/tasks/:taskId', async (req: Request, res: Response) => {
-  await pool.query('DELETE FROM tasks WHERE id = $1', [req.params.taskId]);
-  res.json({ message: 'Task deleted' });
-});
-
-// ── Admin: GET /api/admin/tasks (all tasks flat view) ────
-router.get('/admin/tasks/all', async (req: Request, res: Response) => {
-  const { status, assigned_to } = req.query;
-  const conditions: string[] = [];
-  const params: unknown[] = [];
-  let idx = 1;
-
-  if (status) {
-    conditions.push(`t.status = $${idx++}`);
-    params.push(status);
-  }
-  if (assigned_to) {
-    conditions.push(`t.assigned_to = $${idx++}`);
-    params.push(assigned_to);
-  }
-
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-
-  const result = await pool.query(
-    `SELECT t.*, p.title AS project_title
-     FROM tasks t
-     LEFT JOIN projects p ON p.id = t.project_id
-     ${where}
-     ORDER BY t.created_at DESC`,
-    params
-  );
-  res.json({ data: result.rows, total: result.rowCount });
 });
 
 export default router;

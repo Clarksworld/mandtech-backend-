@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { pool } from '../db';
 import { validate } from '../middleware/validate';
 
-const router = Router();
+export const inquiriesRouter = Router();
+export const adminInquiriesRouter = Router();
 
 const inquirySchema = z.object({
   name:                z.string().min(2),
@@ -16,7 +17,7 @@ const inquirySchema = z.object({
 });
 
 // ── Public: POST /api/inquiries ───────────────────────────
-router.post('/', validate(inquirySchema), async (req: Request, res: Response) => {
+inquiriesRouter.post('/', validate(inquirySchema), async (req: Request, res: Response) => {
   const d = req.body as z.infer<typeof inquirySchema>;
   const result = await pool.query(
     `INSERT INTO inquiries (name, company, email, phone, message, equipment_interests, newsletter_opt_in)
@@ -32,7 +33,7 @@ router.post('/', validate(inquirySchema), async (req: Request, res: Response) =>
 
 // ── Admin: GET /api/admin/inquiries ───────────────────────
 // Query params: status, page (default 1), limit (default 20)
-router.get('/admin', async (req: Request, res: Response) => {
+adminInquiriesRouter.get(['/', '/admin'], async (req: Request, res: Response) => {
   const { status, page = '1', limit = '20' } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
 
@@ -64,7 +65,7 @@ router.get('/admin', async (req: Request, res: Response) => {
 });
 
 // ── Admin: GET /api/admin/inquiries/:id ───────────────────
-router.get('/admin/:id', async (req: Request, res: Response) => {
+adminInquiriesRouter.get(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
   const result = await pool.query('SELECT * FROM inquiries WHERE id = $1', [req.params.id]);
   if (!result.rows[0]) {
     res.status(404).json({ error: 'Inquiry not found' });
@@ -74,7 +75,7 @@ router.get('/admin/:id', async (req: Request, res: Response) => {
 });
 
 // ── Admin: PUT /api/admin/inquiries/:id/status ────────────
-router.put('/admin/:id/status', async (req: Request, res: Response) => {
+adminInquiriesRouter.put(['/:id/status', '/admin/:id/status'], async (req: Request, res: Response) => {
   const { status } = req.body as { status: string };
   const allowed = ['new', 'in_review', 'responded', 'closed'];
   if (!allowed.includes(status)) {
@@ -94,7 +95,7 @@ router.put('/admin/:id/status', async (req: Request, res: Response) => {
 
 // ── Admin: PUT /api/admin/inquiries/:id/assign ────────────
 // Body: { user_id: string } — pass null to unassign
-router.put('/admin/:id/assign', async (req: Request, res: Response) => {
+adminInquiriesRouter.put(['/:id/assign', '/admin/:id/assign'], async (req: Request, res: Response) => {
   const { user_id } = req.body as { user_id: string | null };
 
   // Look up the user name if assigning
@@ -126,4 +127,4 @@ router.put('/admin/:id/assign', async (req: Request, res: Response) => {
   });
 });
 
-export default router;
+export default inquiriesRouter;

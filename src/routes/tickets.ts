@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { pool } from '../db';
 import { validate } from '../middleware/validate';
 
-const router = Router();
+export const ticketsRouter = Router();
+export const adminTicketsRouter = Router();
 
 /** Generate MT-xxxxxx ticket ID */
 function generateTicketId(): string {
@@ -24,7 +25,7 @@ const ticketSchema = z.object({
 });
 
 // ── Public: POST /api/tickets ─────────────────────────────
-router.post('/', validate(ticketSchema), async (req: Request, res: Response) => {
+ticketsRouter.post('/', validate(ticketSchema), async (req: Request, res: Response) => {
   const d = req.body as z.infer<typeof ticketSchema>;
 
   if (!d.authorize_dispatch) {
@@ -74,7 +75,7 @@ router.post('/', validate(ticketSchema), async (req: Request, res: Response) => 
 });
 
 // ── Public: GET /api/tickets/:id ──────────────────────────
-router.get('/:id', async (req: Request, res: Response) => {
+ticketsRouter.get('/:id', async (req: Request, res: Response) => {
   const ticketId = (req.params.id as string).toUpperCase().trim();
 
   const ticketResult = await pool.query(
@@ -103,7 +104,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // ── Admin: GET /api/admin/tickets ─────────────────────────
-router.get('/admin/all', async (req: Request, res: Response) => {
+adminTicketsRouter.get(['/', '/all', '/admin/all', '/admin'], async (req: Request, res: Response) => {
   const { status, page = '1', limit = '20' } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
 
@@ -133,8 +134,35 @@ router.get('/admin/all', async (req: Request, res: Response) => {
   });
 });
 
+// ── Admin: GET /api/admin/tickets/:id ─────────────────────
+adminTicketsRouter.get(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
+  const ticketId = (req.params.id as string).toUpperCase().trim();
+
+  const ticketResult = await pool.query(
+    'SELECT * FROM service_tickets WHERE id = $1',
+    [ticketId]
+  );
+  const ticket = ticketResult.rows[0];
+  if (!ticket) {
+    res.status(404).json({ error: 'Ticket not found.' });
+    return;
+  }
+
+  const logsResult = await pool.query(
+    'SELECT time_label, log_text, created_at FROM ticket_logs WHERE ticket_id = $1 ORDER BY created_at ASC',
+    [ticketId]
+  );
+
+  res.json({
+    data: {
+      ...ticket,
+      logs: logsResult.rows.map((l) => ({ time: l.time_label, text: l.log_text })),
+    },
+  });
+});
+
 // ── Admin: PUT /api/admin/tickets/:id ─────────────────────
-router.put('/admin/:id', async (req: Request, res: Response) => {
+adminTicketsRouter.put(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
   const { status, assigned_engineer, eta } = req.body as {
     status?: string;
     assigned_engineer?: string;
@@ -165,7 +193,7 @@ router.put('/admin/:id', async (req: Request, res: Response) => {
 });
 
 // ── Admin: POST /api/admin/tickets/:id/logs ───────────────
-router.post('/admin/:id/logs', async (req: Request, res: Response) => {
+adminTicketsRouter.post(['/:id/logs', '/admin/:id/logs'], async (req: Request, res: Response) => {
   const { time_label, log_text } = req.body as { time_label: string; log_text: string };
   if (!log_text?.trim()) {
     res.status(400).json({ error: 'log_text is required' });
@@ -183,4 +211,4 @@ router.post('/admin/:id/logs', async (req: Request, res: Response) => {
   res.status(201).json({ data: result.rows[0] });
 });
 
-export default router;
+export default ticketsRouter;

@@ -3,11 +3,12 @@ import { z } from 'zod';
 import { pool } from '../db';
 import { validate } from '../middleware/validate';
 
-const router = Router();
+export const partsRouter = Router();
+export const adminPartsRouter = Router();
 
 // ── Public: GET /api/parts ────────────────────────────────
 // Query params: category, brand, condition, search, sort (sku-asc | brand-asc)
-router.get('/', async (req: Request, res: Response) => {
+partsRouter.get('/', async (req: Request, res: Response) => {
   const { category, brand, condition, search, sort } = req.query;
 
   let where: string[] = ['is_active = TRUE'];
@@ -50,7 +51,7 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // ── Public: GET /api/parts/:id ────────────────────────────
-router.get('/:id', async (req: Request, res: Response) => {
+partsRouter.get('/:id', async (req: Request, res: Response) => {
   const result = await pool.query(
     'SELECT * FROM parts WHERE id = $1 AND is_active = TRUE',
     [req.params.id]
@@ -75,8 +76,24 @@ const partSchema = z.object({
   is_active:     z.boolean().default(true),
 });
 
+// ── Admin: GET /api/admin/parts (all incl. inactive) ───────
+adminPartsRouter.get(['/', '/all', '/admin/all', '/admin'], async (_req: Request, res: Response) => {
+  const result = await pool.query('SELECT * FROM parts ORDER BY created_at DESC');
+  res.json({ data: result.rows, total: result.rowCount });
+});
+
+// ── Admin: GET /api/admin/parts/:id ───────────────────────
+adminPartsRouter.get(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
+  const result = await pool.query('SELECT * FROM parts WHERE id = $1', [req.params.id]);
+  if (!result.rows[0]) {
+    res.status(404).json({ error: 'Part not found' });
+    return;
+  }
+  res.json({ data: result.rows[0] });
+});
+
 // ── Admin: POST /api/admin/parts ──────────────────────────
-router.post('/admin', validate(partSchema), async (req: Request, res: Response) => {
+adminPartsRouter.post(['/', '/admin'], validate(partSchema), async (req: Request, res: Response) => {
   const d = req.body as z.infer<typeof partSchema>;
   try {
     const result = await pool.query(
@@ -97,7 +114,7 @@ router.post('/admin', validate(partSchema), async (req: Request, res: Response) 
 });
 
 // ── Admin: PUT /api/admin/parts/:id ───────────────────────
-router.put('/admin/:id', validate(partSchema), async (req: Request, res: Response) => {
+adminPartsRouter.put(['/:id', '/admin/:id'], validate(partSchema), async (req: Request, res: Response) => {
   const d = req.body as z.infer<typeof partSchema>;
   const result = await pool.query(
     `UPDATE parts SET
@@ -115,7 +132,7 @@ router.put('/admin/:id', validate(partSchema), async (req: Request, res: Respons
 });
 
 // ── Admin: DELETE /api/admin/parts/:id (soft delete) ──────
-router.delete('/admin/:id', async (req: Request, res: Response) => {
+adminPartsRouter.delete(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
   await pool.query(
     'UPDATE parts SET is_active = FALSE, updated_at = NOW() WHERE id = $1',
     [req.params.id]
@@ -123,10 +140,4 @@ router.delete('/admin/:id', async (req: Request, res: Response) => {
   res.json({ message: 'Part deactivated' });
 });
 
-// ── Admin: GET /api/admin/parts/all ───────────────────────
-router.get('/admin/all', async (_req: Request, res: Response) => {
-  const result = await pool.query('SELECT * FROM parts ORDER BY created_at DESC');
-  res.json({ data: result.rows, total: result.rowCount });
-});
-
-export default router;
+export default partsRouter;

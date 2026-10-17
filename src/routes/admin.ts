@@ -6,8 +6,8 @@ import { validate } from '../middleware/validate';
 
 const router = Router();
 
-// ── GET /api/admin/dashboard/stats ───────────────────────
-router.get('/stats', async (_req: Request, res: Response) => {
+// ── GET /api/admin/stats & /api/admin/dashboard/stats ────
+router.get(['/stats', '/dashboard/stats'], async (_req: Request, res: Response) => {
   const [products, parts, inquiries, tickets] = await Promise.all([
     pool.query('SELECT COUNT(*) FROM products WHERE is_active = TRUE'),
     pool.query('SELECT COUNT(*) FROM parts WHERE is_active = TRUE'),

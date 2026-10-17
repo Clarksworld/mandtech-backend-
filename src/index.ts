@@ -6,15 +6,15 @@ import { initDb } from './db';
 import { requireAuth } from './middleware/auth';
 
 // Routes
-import authRouter      from './routes/auth';
-import productsRouter  from './routes/products';
-import partsRouter     from './routes/parts';
-import inquiriesRouter from './routes/inquiries';
-import ticketsRouter   from './routes/tickets';
-import documentsRouter from './routes/documents';
-import adminRouter     from './routes/admin';
-import invoicesRouter  from './routes/invoices';
-import projectsRouter  from './routes/projects';
+import authRouter                                  from './routes/auth';
+import { productsRouter, adminProductsRouter }     from './routes/products';
+import { partsRouter, adminPartsRouter }           from './routes/parts';
+import { inquiriesRouter, adminInquiriesRouter }   from './routes/inquiries';
+import { ticketsRouter, adminTicketsRouter }       from './routes/tickets';
+import { documentsRouter, adminDocumentsRouter }   from './routes/documents';
+import adminRouter                                 from './routes/admin';
+import invoicesRouter                              from './routes/invoices';
+import projectsRouter, { tasksRouter }             from './routes/projects';
 
 dotenv.config();
 
@@ -98,13 +98,14 @@ app.use('/api/tickets',   ticketsRouter);
 app.use('/api/documents', documentsRouter);
 
 // ── Admin-only routes (JWT required) ─────────────────────
-app.use('/api/admin/products',  requireAuth, productsRouter);
-app.use('/api/admin/parts',     requireAuth, partsRouter);
-app.use('/api/admin/inquiries', requireAuth, inquiriesRouter);
-app.use('/api/admin/tickets',   requireAuth, ticketsRouter);
-app.use('/api/admin/documents', requireAuth, documentsRouter);
+app.use('/api/admin/products',  requireAuth, adminProductsRouter);
+app.use('/api/admin/parts',     requireAuth, adminPartsRouter);
+app.use('/api/admin/inquiries', requireAuth, adminInquiriesRouter);
+app.use('/api/admin/tickets',   requireAuth, adminTicketsRouter);
+app.use('/api/admin/documents', requireAuth, adminDocumentsRouter);
 app.use('/api/admin/invoices',  requireAuth, invoicesRouter);
 app.use('/api/admin/projects',  requireAuth, projectsRouter);
+app.use('/api/admin/tasks',     requireAuth, tasksRouter);
 app.use('/api/admin',           requireAuth, adminRouter);
 
 // ── Global error handler ──────────────────────────────────

@@ -46,7 +46,7 @@ function calcTotals(
 }
 
 // ── Admin: GET /api/admin/invoices ────────────────────────
-router.get('/admin', async (req: Request, res: Response) => {
+router.get(['/', '/admin'], async (req: Request, res: Response) => {
   const { status, page = '1', limit = '20' } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
 
@@ -75,7 +75,7 @@ router.get('/admin', async (req: Request, res: Response) => {
 });
 
 // ── Admin: GET /api/admin/invoices/:id ────────────────────
-router.get('/admin/:id', async (req: Request, res: Response) => {
+router.get(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
   const result = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
   if (!result.rows[0]) {
     res.status(404).json({ error: 'Invoice not found' });
@@ -85,7 +85,7 @@ router.get('/admin/:id', async (req: Request, res: Response) => {
 });
 
 // ── Admin: POST /api/admin/invoices ───────────────────────
-router.post('/admin', validate(invoiceSchema), async (req: Request, res: Response) => {
+router.post(['/', '/admin'], validate(invoiceSchema), async (req: Request, res: Response) => {
   const d = req.body as z.infer<typeof invoiceSchema>;
   const { subtotal, discountAmount, vatAmount, total } = calcTotals(
     d.line_items, d.discount_pct, d.vat_rate_pct
@@ -118,7 +118,7 @@ router.post('/admin', validate(invoiceSchema), async (req: Request, res: Respons
 });
 
 // ── Admin: PUT /api/admin/invoices/:id ────────────────────
-router.put('/admin/:id', validate(invoiceSchema), async (req: Request, res: Response) => {
+router.put(['/:id', '/admin/:id'], validate(invoiceSchema), async (req: Request, res: Response) => {
   const d = req.body as z.infer<typeof invoiceSchema>;
   const { subtotal, discountAmount, vatAmount, total } = calcTotals(
     d.line_items, d.discount_pct, d.vat_rate_pct
@@ -149,7 +149,7 @@ router.put('/admin/:id', validate(invoiceSchema), async (req: Request, res: Resp
 });
 
 // ── Admin: PUT /api/admin/invoices/:id/status ─────────────
-router.put('/admin/:id/status', async (req: Request, res: Response) => {
+router.put(['/:id/status', '/admin/:id/status'], async (req: Request, res: Response) => {
   const { status } = req.body as { status: string };
   const allowed = ['draft', 'sent', 'paid', 'cancelled'];
   if (!allowed.includes(status)) {
@@ -169,7 +169,7 @@ router.put('/admin/:id/status', async (req: Request, res: Response) => {
 });
 
 // ── Admin: DELETE /api/admin/invoices/:id ─────────────────
-router.delete('/admin/:id', async (req: Request, res: Response) => {
+router.delete(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
   await pool.query(
     "UPDATE invoices SET status='cancelled', updated_at=NOW() WHERE id=$1",
     [req.params.id]

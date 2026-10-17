@@ -3,10 +3,11 @@ import { z } from 'zod';
 import { pool } from '../db';
 import { validate } from '../middleware/validate';
 
-const router = Router();
+export const documentsRouter = Router();
+export const adminDocumentsRouter = Router();
 
 // ── Public: GET /api/documents ────────────────────────────
-router.get('/', async (_req: Request, res: Response) => {
+documentsRouter.get('/', async (_req: Request, res: Response) => {
   const result = await pool.query(
     'SELECT id, title, file_url, file_size, read_duration, icon_emoji FROM documents WHERE is_active = TRUE ORDER BY created_at ASC'
   );
@@ -23,8 +24,16 @@ const documentSchema = z.object({
   is_active:     z.boolean().default(true),
 });
 
+// ── Admin: GET /api/admin/documents (all incl. inactive) ──
+adminDocumentsRouter.get(['/', '/all', '/admin/all', '/admin'], async (_req: Request, res: Response) => {
+  const result = await pool.query(
+    'SELECT id, title, file_url, file_size, read_duration, icon_emoji, is_active, created_at FROM documents ORDER BY created_at DESC'
+  );
+  res.json({ data: result.rows, total: result.rowCount });
+});
+
 // ── Admin: POST /api/admin/documents ──────────────────────
-router.post('/admin', validate(documentSchema), async (req: Request, res: Response) => {
+adminDocumentsRouter.post(['/', '/admin'], validate(documentSchema), async (req: Request, res: Response) => {
   const d = req.body as z.infer<typeof documentSchema>;
   const result = await pool.query(
     `INSERT INTO documents (title, file_url, file_size, read_duration, icon_emoji, is_active)
@@ -35,7 +44,7 @@ router.post('/admin', validate(documentSchema), async (req: Request, res: Respon
 });
 
 // ── Admin: PUT /api/admin/documents/:id ───────────────────
-router.put('/admin/:id', validate(documentSchema), async (req: Request, res: Response) => {
+adminDocumentsRouter.put(['/:id', '/admin/:id'], validate(documentSchema), async (req: Request, res: Response) => {
   const d = req.body as z.infer<typeof documentSchema>;
   const result = await pool.query(
     `UPDATE documents SET title=$1, file_url=$2, file_size=$3, read_duration=$4, icon_emoji=$5, is_active=$6
@@ -50,9 +59,9 @@ router.put('/admin/:id', validate(documentSchema), async (req: Request, res: Res
 });
 
 // ── Admin: DELETE /api/admin/documents/:id ────────────────
-router.delete('/admin/:id', async (req: Request, res: Response) => {
+adminDocumentsRouter.delete(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
   await pool.query('UPDATE documents SET is_active = FALSE WHERE id = $1', [req.params.id]);
   res.json({ message: 'Document deactivated' });
 });
 
-export default router;
+export default documentsRouter;

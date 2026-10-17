@@ -3,11 +3,12 @@ import { z } from 'zod';
 import { pool } from '../db';
 import { validate } from '../middleware/validate';
 
-const router = Router();
+export const productsRouter = Router();
+export const adminProductsRouter = Router();
 
 // ── Public: GET /api/products ─────────────────────────────
 // Query params: category, brand, driven, maxCapacity, sort (capacity-asc | capacity-desc)
-router.get('/', async (req: Request, res: Response) => {
+productsRouter.get('/', async (req: Request, res: Response) => {
   const { category, brand, driven, maxCapacity, sort } = req.query;
 
   let where: string[] = ['is_active = TRUE'];
@@ -46,7 +47,7 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // ── Public: GET /api/products/:id ─────────────────────────
-router.get('/:id', async (req: Request, res: Response) => {
+productsRouter.get('/:id', async (req: Request, res: Response) => {
   const result = await pool.query(
     'SELECT * FROM products WHERE id = $1 AND is_active = TRUE',
     [req.params.id]
@@ -71,8 +72,26 @@ const productSchema = z.object({
   is_active:   z.boolean().default(true),
 });
 
+// ── Admin: GET /api/admin/products (all incl. inactive) ───
+adminProductsRouter.get(['/', '/all', '/admin/all', '/admin'], async (_req: Request, res: Response) => {
+  const result = await pool.query(
+    'SELECT * FROM products ORDER BY created_at DESC'
+  );
+  res.json({ data: result.rows, total: result.rowCount });
+});
+
+// ── Admin: GET /api/admin/products/:id ────────────────────
+adminProductsRouter.get(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
+  const result = await pool.query('SELECT * FROM products WHERE id = $1', [req.params.id]);
+  if (!result.rows[0]) {
+    res.status(404).json({ error: 'Product not found' });
+    return;
+  }
+  res.json({ data: result.rows[0] });
+});
+
 // ── Admin: POST /api/admin/products ───────────────────────
-router.post('/admin', validate(productSchema), async (req: Request, res: Response) => {
+adminProductsRouter.post(['/', '/admin'], validate(productSchema), async (req: Request, res: Response) => {
   const d = req.body as z.infer<typeof productSchema>;
   const result = await pool.query(
     `INSERT INTO products (title, category, brand, driven_type, capacity, badge, specs, image_url, is_active)
@@ -84,7 +103,7 @@ router.post('/admin', validate(productSchema), async (req: Request, res: Respons
 });
 
 // ── Admin: PUT /api/admin/products/:id ────────────────────
-router.put('/admin/:id', validate(productSchema), async (req: Request, res: Response) => {
+adminProductsRouter.put(['/:id', '/admin/:id'], validate(productSchema), async (req: Request, res: Response) => {
   const d = req.body as z.infer<typeof productSchema>;
   const result = await pool.query(
     `UPDATE products SET
@@ -102,7 +121,7 @@ router.put('/admin/:id', validate(productSchema), async (req: Request, res: Resp
 });
 
 // ── Admin: DELETE /api/admin/products/:id (soft delete) ───
-router.delete('/admin/:id', async (req: Request, res: Response) => {
+adminProductsRouter.delete(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
   await pool.query(
     'UPDATE products SET is_active = FALSE, updated_at = NOW() WHERE id = $1',
     [req.params.id]
@@ -110,12 +129,4 @@ router.delete('/admin/:id', async (req: Request, res: Response) => {
   res.json({ message: 'Product deactivated' });
 });
 
-// ── Admin: GET /api/admin/products (all incl. inactive) ───
-router.get('/admin/all', async (_req: Request, res: Response) => {
-  const result = await pool.query(
-    'SELECT * FROM products ORDER BY created_at DESC'
-  );
-  res.json({ data: result.rows, total: result.rowCount });
-});
-
-export default router;
+export default productsRouter;
