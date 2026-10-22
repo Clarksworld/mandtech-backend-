@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { pool } from '../db';
 import { validate } from '../middleware/validate';
+import { AuthRequest } from '../middleware/auth';
 
 const router = Router();
 export const tasksRouter = Router();
@@ -116,11 +117,12 @@ router.get(['/', '/admin'], async (req: Request, res: Response) => {
 });
 
 // ── Admin: POST /api/admin/projects ──────────────────────
-router.post(['/', '/admin'], validate(projectSchema), async (req: Request, res: Response) => {
+router.post(['/', '/admin'], validate(projectSchema), async (req: AuthRequest, res: Response) => {
   const d = req.body as z.infer<typeof projectSchema>;
+  const createdBy = req.user?.id ?? null;
   const result = await pool.query(
-    `INSERT INTO projects (title, description, status) VALUES ($1,$2,$3) RETURNING *`,
-    [d.title, d.description, d.status]
+    `INSERT INTO projects (title, description, status, created_by) VALUES ($1,$2,$3,$4) RETURNING *`,
+    [d.title, d.description, d.status, createdBy]
   );
   res.status(201).json({ data: result.rows[0] });
 });

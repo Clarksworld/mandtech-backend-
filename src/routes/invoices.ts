@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { pool } from '../db';
 import { validate } from '../middleware/validate';
+import { AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -85,7 +86,7 @@ router.get(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
 });
 
 // ── Admin: POST /api/admin/invoices ───────────────────────
-router.post(['/', '/admin'], validate(invoiceSchema), async (req: Request, res: Response) => {
+router.post(['/', '/admin'], validate(invoiceSchema), async (req: AuthRequest, res: Response) => {
   const d = req.body as z.infer<typeof invoiceSchema>;
   const { subtotal, discountAmount, vatAmount, total } = calcTotals(
     d.line_items, d.discount_pct, d.vat_rate_pct
@@ -99,18 +100,19 @@ router.post(['/', '/admin'], validate(invoiceSchema), async (req: Request, res: 
     invoiceNumber = generateInvoiceNumber();
   }
 
+  const createdBy = req.user?.id ?? null;
   const result = await pool.query(
     `INSERT INTO invoices
        (invoice_number, company, contact_name, email, billing_address, line_items,
         discount_pct, vat_rate_pct, delivery_terms, currency, notes, status,
-        subtotal, discount_amount, vat_amount, total)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+        subtotal, discount_amount, vat_amount, total, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
      RETURNING *`,
     [
       invoiceNumber, d.company, d.contact_name, d.email, d.billing_address,
       JSON.stringify(d.line_items), d.discount_pct, d.vat_rate_pct, d.delivery_terms,
       d.currency, d.notes, d.status,
-      subtotal, discountAmount, vatAmount, total,
+      subtotal, discountAmount, vatAmount, total, createdBy,
     ]
   );
 

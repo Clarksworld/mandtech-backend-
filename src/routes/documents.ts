@@ -32,6 +32,19 @@ adminDocumentsRouter.get(['/', '/all', '/admin/all', '/admin'], async (_req: Req
   res.json({ data: result.rows, total: result.rowCount });
 });
 
+// ── Admin: GET /api/admin/documents/:id ───────────────────
+adminDocumentsRouter.get(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
+  const result = await pool.query(
+    'SELECT id, title, file_url, file_size, read_duration, icon_emoji, is_active, created_at FROM documents WHERE id = $1',
+    [req.params.id]
+  );
+  if (!result.rows[0]) {
+    res.status(404).json({ error: 'Document not found' });
+    return;
+  }
+  res.json({ data: result.rows[0] });
+});
+
 // ── Admin: POST /api/admin/documents ──────────────────────
 adminDocumentsRouter.post(['/', '/admin'], validate(documentSchema), async (req: Request, res: Response) => {
   const d = req.body as z.infer<typeof documentSchema>;

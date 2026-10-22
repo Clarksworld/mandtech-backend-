@@ -127,7 +127,29 @@ export const swaggerDocument = {
           status: { type: 'string', enum: ['active', 'completed', 'on_hold', 'cancelled'], default: 'active' }
         }
       },
-      Task: {
+      User: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        email: { type: 'string', format: 'email' },
+        role: { type: 'string', enum: ['admin', 'staff'] },
+        created_at: { type: 'string', format: 'date-time' }
+      }
+    },
+    Document: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        title: { type: 'string' },
+        file_url: { type: 'string' },
+        file_size: { type: 'string' },
+        read_duration: { type: 'string' },
+        icon_emoji: { type: 'string' },
+        is_active: { type: 'boolean' },
+        created_at: { type: 'string', format: 'date-time' }
+      }
+    },
+    Task: {
         type: 'object',
         required: ['title'],
         properties: {
@@ -561,6 +583,177 @@ export const swaggerDocument = {
         responses: {
           200: { description: 'All tasks list' }
         }
+      }
+    },
+    '/api/admin/users': {
+      get: {
+        summary: 'List All Admin/Staff Users',
+        security: [{ bearerAuth: [] }],
+        responses: { 200: { description: 'List of users' } }
+      },
+      post: {
+        summary: 'Create New Admin/Staff User (Admin only)',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['email', 'password'],
+                properties: {
+                  email: { type: 'string', format: 'email' },
+                  password: { type: 'string', minLength: 8 },
+                  role: { type: 'string', enum: ['admin', 'staff'], default: 'staff' }
+                }
+              }
+            }
+          }
+        },
+        responses: { 201: { description: 'User created' } }
+      }
+    },
+    '/api/admin/users/{id}': {
+      put: {
+        summary: 'Update User Role / Password (Admin only)',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  email: { type: 'string', format: 'email' },
+                  role: { type: 'string', enum: ['admin', 'staff'] },
+                  password: { type: 'string', minLength: 8 }
+                }
+              }
+            }
+          }
+        },
+        responses: { 200: { description: 'User updated' } }
+      },
+      delete: {
+        summary: 'Delete User (Admin only)',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'User deleted' } }
+      }
+    },
+    '/api/admin/inquiries/{id}': {
+      get: {
+        summary: 'Get Inquiry Details',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Inquiry details' } }
+      },
+      delete: {
+        summary: 'Delete Inquiry',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Inquiry deleted' } }
+      }
+    },
+    '/api/admin/tickets/{id}': {
+      get: {
+        summary: 'Get Service Ticket Details & Logs',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Ticket details with logs' } }
+      },
+      put: {
+        summary: 'Update Service Ticket Status / Engineer / ETA',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  status: { type: 'string', enum: ['received', 'assigned', 'in_dispatch', 'completed', 'cancelled'] },
+                  assigned_engineer: { type: 'string' },
+                  eta: { type: 'string' }
+                }
+              }
+            }
+          }
+        },
+        responses: { 200: { description: 'Ticket updated' } }
+      },
+      delete: {
+        summary: 'Delete Service Ticket',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Ticket deleted' } }
+      }
+    },
+    '/api/admin/tickets/{id}/logs': {
+      post: {
+        summary: 'Add Dispatch Log Entry to Ticket',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['log_text'],
+                properties: {
+                  time_label: { type: 'string' },
+                  log_text: { type: 'string' }
+                }
+              }
+            }
+          }
+        },
+        responses: { 201: { description: 'Log entry added' } }
+      }
+    },
+    '/api/admin/documents': {
+      get: {
+        summary: 'List All Documents (Including Inactive)',
+        security: [{ bearerAuth: [] }],
+        responses: { 200: { description: 'List of documents' } }
+      },
+      post: {
+        summary: 'Create New Document',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/Document' } }
+          }
+        },
+        responses: { 201: { description: 'Document created' } }
+      }
+    },
+    '/api/admin/documents/{id}': {
+      get: {
+        summary: 'Get Document Details by ID',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Document details' } }
+      },
+      put: {
+        summary: 'Update Document',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/Document' } }
+          }
+        },
+        responses: { 200: { description: 'Document updated' } }
+      },
+      delete: {
+        summary: 'Deactivate / Soft-Delete Document',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Document deactivated' } }
       }
     },
     '/api/admin/tickets/all': {

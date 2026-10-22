@@ -211,4 +211,16 @@ adminTicketsRouter.post(['/:id/logs', '/admin/:id/logs'], async (req: Request, r
   res.status(201).json({ data: result.rows[0] });
 });
 
+
+// ── Admin: DELETE /api/admin/tickets/:id ─────────────────
+adminTicketsRouter.delete(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
+  const ticketId = (req.params.id as string).toUpperCase().trim();
+  const result = await pool.query("DELETE FROM service_tickets WHERE id = $1 RETURNING id", [ticketId]);
+  if (!result.rows[0]) {
+    res.status(404).json({ error: "Ticket not found." });
+    return;
+  }
+  res.json({ message: "Ticket deleted" });
+});
+
 export default ticketsRouter;

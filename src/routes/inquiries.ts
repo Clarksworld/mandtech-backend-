@@ -127,4 +127,15 @@ adminInquiriesRouter.put(['/:id/assign', '/admin/:id/assign'], async (req: Reque
   });
 });
 
+
+// ── Admin: DELETE /api/admin/inquiries/:id ───────────────
+adminInquiriesRouter.delete(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
+  const result = await pool.query("DELETE FROM inquiries WHERE id = $1 RETURNING id", [req.params.id]);
+  if (!result.rows[0]) {
+    res.status(404).json({ error: "Inquiry not found" });
+    return;
+  }
+  res.json({ message: "Inquiry deleted" });
+});
+
 export default inquiriesRouter;
