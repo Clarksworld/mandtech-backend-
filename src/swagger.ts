@@ -348,12 +348,23 @@ export const swaggerDocument = {
         }
       }
     },
+    '/api/admin/inquiries/stats': {
+      get: {
+        summary: 'Get Inquiries Aggregated Stats and Counts by Equipment Class',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: { description: 'Inquiry statistics and breakdowns' }
+        }
+      }
+    },
     '/api/admin/inquiries': {
       get: {
         summary: 'List All Customer Inquiries (Paginated)',
         security: [{ bearerAuth: [] }],
         parameters: [
           { name: 'status', in: 'query', schema: { type: 'string', enum: ['new', 'in_review', 'responded', 'closed'] } },
+          { name: 'equipment_class', in: 'query', schema: { type: 'string' }, description: 'Filter by equipment class (New Equipment Purchase, Equipment Rental, Spare Parts, Service Request)' },
+          { name: 'search', in: 'query', schema: { type: 'string' }, description: 'Search name, company, email, or message' },
           { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
           { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } }
         ],

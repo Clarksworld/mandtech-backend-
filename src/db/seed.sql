@@ -127,3 +127,49 @@ INSERT INTO documents (title, file_url, file_size, read_duration, icon_emoji) VA
   'https://res.cloudinary.com/mandtech/raw/upload/v1/docs/generator-emergency-guide.pdf',
   'PDF (1.2 MB)', '8 min read', '⚠️'
 );
+
+
+-- ============================================================
+--  INQUIRIES (Customer RFQ & Technical Enquiries)
+-- ============================================================
+INSERT INTO inquiries (name, company, email, phone, message, equipment_interests, newsletter_opt_in, status) VALUES
+(
+  'Engr. Babatunde Adeleke',
+  'Dangote Refinery & Petrochemicals',
+  'b.adeleke@dangotegroup.com',
+  '+234 803 555 0192',
+  'Urgent requirement for 2 units of 375 CFM portable diesel air compressors for continuous site commissioning in Lekki Free Zone.',
+  '["New Equipment Purchase", "Sullair 375 Tier 4"]',
+  true,
+  'new'
+),
+(
+  'Chukwuma Eze',
+  'Delta Offshore Marine Services',
+  'c.eze@deltaoffshore.ng',
+  '+234 802 119 4482',
+  'Requesting 3-month rental quotation for 500 kVA prime diesel generator package with sound attenuation and weekly mobilization maintenance.',
+  '["Equipment Rental", "Prime Power 500 kVA"]',
+  true,
+  'in_review'
+),
+(
+  'Fatima Aliyu',
+  'Northern Breweries Plc',
+  'fatima.aliyu@northernbreweries.ng',
+  '+234 814 882 9102',
+  'Need quotation and dispatch availability for OEM high-pressure oil filters and gasket overhaul kit for Atlas Copco screw compressor.',
+  '["Spare Parts", "High-Pressure Oil Filter", "Service Overhaul Gasket Kit"]',
+  false,
+  'responded'
+),
+(
+  'Michael Okon',
+  'Bonga Deepwater Logistics',
+  'm.okon@bongalogistics.com',
+  '+234 807 334 1120',
+  'Emergency request for certified field technician dispatch to inspect high vibration on rotary screw compressor unit at Onne terminal.',
+  '["Service Request"]',
+  true,
+  'new'
+);
