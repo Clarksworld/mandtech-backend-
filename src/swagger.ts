@@ -164,6 +164,104 @@ export const swaggerDocument = {
     }
   },
   paths: {
+    '/api/compressor-requests': {
+      post: {
+        tags: ['Compressor Requests'],
+        summary: 'Submit formal quotation request for an air compressor',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['compressor_type', 'brand', 'company_name', 'email', 'phone'],
+                properties: {
+                  compressor_type: { type: 'string', enum: ['ELECTRIC AIR COMPRESSOR', 'DIESEL AIR COMPRESSOR'] },
+                  brand: { type: 'string', enum: ['ATLAS COPCO', 'SULLAIR', 'INGERSOLL RAND', 'DENAIR'] },
+                  company_name: { type: 'string', example: 'Dangote Industries' },
+                  email: { type: 'string', example: 'procurement@dangote.com' },
+                  phone: { type: 'string', example: '+234 803 123 4567' },
+                  notes: { type: 'string', example: 'Looking for 300 CFM rotary screw model' }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          201: { description: 'Quotation request submitted successfully' },
+          400: { description: 'Validation error' }
+        }
+      }
+    },
+    '/api/admin/compressor-requests': {
+      get: {
+        tags: ['Admin - Compressor Requests'],
+        summary: 'List compressor quotation requests with filtering & search',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'compressor_type', in: 'query', schema: { type: 'string' } },
+          { name: 'brand', in: 'query', schema: { type: 'string' } },
+          { name: 'status', in: 'query', schema: { type: 'string' } },
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } }
+        ],
+        responses: {
+          200: { description: 'Paginated list of compressor requests' }
+        }
+      }
+    },
+    '/api/admin/compressor-requests/stats': {
+      get: {
+        tags: ['Admin - Compressor Requests'],
+        summary: 'Get aggregation metrics and breakdown for compressor requests',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: { description: 'Compressor requests summary statistics' }
+        }
+      }
+    },
+    '/api/admin/compressor-requests/{id}/status': {
+      patch: {
+        tags: ['Admin - Compressor Requests'],
+        summary: 'Update quotation request workflow status',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['status'],
+                properties: {
+                  status: { type: 'string', enum: ['new', 'contacted', 'quoted', 'closed'] },
+                  notes: { type: 'string' }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: { description: 'Status updated' }
+        }
+      }
+    },
+    '/api/admin/compressor-requests/{id}': {
+      delete: {
+        tags: ['Admin - Compressor Requests'],
+        summary: 'Delete a compressor quotation request',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }
+        ],
+        responses: {
+          200: { description: 'Request deleted' }
+        }
+      }
+    },
     '/health': {
       get: {
         summary: 'Health check endpoint',

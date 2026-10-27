@@ -164,3 +164,22 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status     ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned   ON tasks(assigned_to);
+
+
+-- ── Compressor Requests (Formal Quotations) ───────────────
+CREATE TABLE IF NOT EXISTS compressor_requests (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  compressor_type  VARCHAR(50) NOT NULL,
+  brand            VARCHAR(50) NOT NULL,
+  company_name     VARCHAR(255) NOT NULL,
+  email            VARCHAR(255) NOT NULL,
+  phone            VARCHAR(50) NOT NULL,
+  status           VARCHAR(30) NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'contacted', 'quoted', 'closed')),
+  notes            TEXT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_comp_req_type ON compressor_requests(compressor_type);
+CREATE INDEX IF NOT EXISTS idx_comp_req_brand ON compressor_requests(brand);
+CREATE INDEX IF NOT EXISTS idx_comp_req_status ON compressor_requests(status);
+CREATE INDEX IF NOT EXISTS idx_comp_req_created ON compressor_requests(created_at DESC);
