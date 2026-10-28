@@ -171,6 +171,7 @@ CREATE TABLE IF NOT EXISTS compressor_requests (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   compressor_type  VARCHAR(50) NOT NULL,
   brand            VARCHAR(50) NOT NULL,
+  condition        VARCHAR(50) DEFAULT 'NEW',
   company_name     VARCHAR(255) NOT NULL,
   email            VARCHAR(255) NOT NULL,
   phone            VARCHAR(50) NOT NULL,
@@ -183,6 +184,45 @@ CREATE INDEX IF NOT EXISTS idx_comp_req_type ON compressor_requests(compressor_t
 CREATE INDEX IF NOT EXISTS idx_comp_req_brand ON compressor_requests(brand);
 CREATE INDEX IF NOT EXISTS idx_comp_req_status ON compressor_requests(status);
 CREATE INDEX IF NOT EXISTS idx_comp_req_created ON compressor_requests(created_at DESC);
+
+-- ── Leasing & Rentals Requests ────────────────────────────
+CREATE TABLE IF NOT EXISTS leasing_requests (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  compressor_type  VARCHAR(100) NOT NULL,
+  brand            VARCHAR(100) NOT NULL,
+  duration         VARCHAR(100) NOT NULL,
+  hub              VARCHAR(150) NOT NULL,
+  company_name     VARCHAR(255) NOT NULL,
+  email            VARCHAR(255) NOT NULL,
+  phone            VARCHAR(50) NOT NULL,
+  status           VARCHAR(30) NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'contacted', 'quoted', 'closed')),
+  notes            TEXT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_leasing_req_type ON leasing_requests(compressor_type);
+CREATE INDEX IF NOT EXISTS idx_leasing_req_brand ON leasing_requests(brand);
+CREATE INDEX IF NOT EXISTS idx_leasing_req_status ON leasing_requests(status);
+CREATE INDEX IF NOT EXISTS idx_leasing_req_created ON leasing_requests(created_at DESC);
+
+-- ── Lubricants & Special Fluids Requests ───────────────────
+CREATE TABLE IF NOT EXISTS lubricant_requests (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  brand            VARCHAR(100) NOT NULL,
+  fluid_type       VARCHAR(150) NOT NULL,
+  volume           VARCHAR(100) NOT NULL,
+  hub              VARCHAR(150) NOT NULL,
+  company_name     VARCHAR(255) NOT NULL,
+  email            VARCHAR(255) NOT NULL,
+  phone            VARCHAR(50) NOT NULL,
+  status           VARCHAR(30) NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'contacted', 'quoted', 'closed')),
+  notes            TEXT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_lubricant_req_brand ON lubricant_requests(brand);
+CREATE INDEX IF NOT EXISTS idx_lubricant_req_status ON lubricant_requests(status);
+CREATE INDEX IF NOT EXISTS idx_lubricant_req_created ON lubricant_requests(created_at DESC);
 `;
 
 export const SEED_SQL = `-- Default admin user (password: mandtech_admin_2024)

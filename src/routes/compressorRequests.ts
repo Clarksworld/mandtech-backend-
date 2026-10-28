@@ -13,6 +13,7 @@ const createRequestSchema = z.object({
   brand: z.enum(['ATLAS COPCO', 'SULLAIR', 'INGERSOLL RAND', 'DENAIR'], {
     errorMap: () => ({ message: 'Brand must be ATLAS COPCO, SULLAIR, INGERSOLL RAND, or DENAIR' }),
   }),
+  condition: z.enum(['NEW', 'USED']).optional().default('NEW'),
   company_name: z.string().min(1, 'Company name is required'),
   email: z.string().email('Valid email address is required'),
   phone: z.string().min(5, 'Valid phone number is required'),
@@ -28,10 +29,10 @@ const updateStatusSchema = z.object({
 compressorRequestsRouter.post('/', validate(createRequestSchema), async (req: Request, res: Response) => {
   const d = req.body as z.infer<typeof createRequestSchema>;
   const result = await pool.query(
-    `INSERT INTO compressor_requests (compressor_type, brand, company_name, email, phone, notes)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING id, compressor_type, brand, company_name, email, phone, status, notes, created_at, updated_at`,
-    [d.compressor_type, d.brand, d.company_name, d.email, d.phone, d.notes || null]
+    `INSERT INTO compressor_requests (compressor_type, brand, condition, company_name, email, phone, notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING id, compressor_type, brand, condition, company_name, email, phone, status, notes, created_at, updated_at`,
+    [d.compressor_type, d.brand, d.condition || 'NEW', d.company_name, d.email, d.phone, d.notes || null]
   );
 
   res.status(201).json({
