@@ -14,6 +14,7 @@ import { compressorRequestsRouter, adminCompressorRequestsRouter } from './route
 import { sparePartsRequestsRouter, adminSparePartsRequestsRouter } from './routes/sparePartsRequests';
 import { leasingRequestsRouter, adminLeasingRequestsRouter } from './routes/leasingRequests';
 import { lubricantRequestsRouter, adminLubricantRequestsRouter } from './routes/lubricantRequests';
+import { ordersRouter, adminOrdersRouter } from './routes/orders';
 import { ticketsRouter, adminTicketsRouter }       from './routes/tickets';
 import { documentsRouter, adminDocumentsRouter }   from './routes/documents';
 import adminRouter                                 from './routes/admin';
@@ -118,6 +119,7 @@ app.use('/api/compressor-requests', compressorRequestsRouter);
 app.use('/api/spare-parts-requests', sparePartsRequestsRouter);
 app.use('/api/leasing-requests', leasingRequestsRouter);
 app.use('/api/lubricant-requests', lubricantRequestsRouter);
+app.use('/api/orders', ordersRouter);
 app.use('/api/tickets',   ticketsRouter);
 app.use('/api/documents', documentsRouter);
 
@@ -129,6 +131,7 @@ app.use('/api/admin/compressor-requests', requireAuth, adminCompressorRequestsRo
 app.use('/api/admin/spare-parts-requests', requireAuth, adminSparePartsRequestsRouter);
 app.use('/api/admin/leasing-requests', requireAuth, adminLeasingRequestsRouter);
 app.use('/api/admin/lubricant-requests', requireAuth, adminLubricantRequestsRouter);
+app.use('/api/admin/orders', requireAuth, adminOrdersRouter);
 app.use('/api/admin/tickets',   requireAuth, adminTicketsRouter);
 app.use('/api/admin/documents', requireAuth, adminDocumentsRouter);
 app.use('/api/admin/invoices',  requireAuth, invoicesRouter);
