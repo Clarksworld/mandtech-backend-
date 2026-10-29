@@ -27,13 +27,29 @@ const PORT = process.env.PORT || 4000;
 
 // ── Global middleware ─────────────────────────────────────
 app.use(cors({
-  origin: [
-    'http://localhost:5173',            // local frontend dev
-    'http://localhost:5174',            // local admin dev
-    'https://mandtech-1chv.vercel.app', // customer site
-    'https://mandtech-admin.vercel.app',// admin site
-    ...(process.env.EXTRA_ORIGINS?.split(',') ?? []),
-  ],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+
+    const allowed = [
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://localhost:3000',
+      'https://mandtech-1chv.vercel.app',
+      'https://mandtech-admin.vercel.app',
+      ...(process.env.EXTRA_ORIGINS?.split(',') ?? []).map(o => o.trim()),
+    ];
+
+    // Allow all vercel preview and production deployments for mandtech
+    if (
+      allowed.includes(origin) ||
+      /^https:\/\/mandtech[a-zA-Z0-9-_]*\.vercel\.app$/.test(origin)
+    ) {
+      return callback(null, true);
+    }
+
+    return callback(null, true); // Fallback: allow origin in development / production
+  },
   credentials: true,
 }));
 app.use(express.json());
