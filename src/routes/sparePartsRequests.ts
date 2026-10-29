@@ -41,8 +41,8 @@ const PART_NAMES = [
 ] as const;
 
 const createRequestSchema = z.object({
-  brand:        z.enum(BRANDS, { errorMap: () => ({ message: 'Invalid brand' }) }),
-  part_name:    z.enum(PART_NAMES, { errorMap: () => ({ message: 'Invalid part name' }) }),
+  brand:        z.string().min(1, 'Brand is required'),
+  part_name:    z.string().min(1, 'Part name is required'),
   company_name: z.string().min(1, 'Company name is required'),
   email:        z.string().email('Valid email address is required'),
   phone:        z.string().min(5, 'Valid phone number is required'),

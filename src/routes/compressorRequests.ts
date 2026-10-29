@@ -10,9 +10,7 @@ const createRequestSchema = z.object({
   compressor_type: z.enum(['ELECTRIC AIR COMPRESSOR', 'DIESEL AIR COMPRESSOR'], {
     errorMap: () => ({ message: 'Compressor type must be ELECTRIC AIR COMPRESSOR or DIESEL AIR COMPRESSOR' }),
   }),
-  brand: z.enum(['ATLAS COPCO', 'SULLAIR', 'INGERSOLL RAND', 'DENAIR'], {
-    errorMap: () => ({ message: 'Brand must be ATLAS COPCO, SULLAIR, INGERSOLL RAND, or DENAIR' }),
-  }),
+  brand: z.string().min(1, 'Brand is required'),
   condition: z.enum(['NEW', 'USED']).optional().default('NEW'),
   company_name: z.string().min(1, 'Company name is required'),
   email: z.string().email('Valid email address is required'),

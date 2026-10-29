@@ -230,3 +230,4 @@ adminOrdersRouter.delete('/:id', async (req: Request, res: Response) => {
   }
   res.json({ message: 'Order deleted', id: orderId });
 });
+
