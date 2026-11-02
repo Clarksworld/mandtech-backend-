@@ -8,14 +8,20 @@ export const adminLeasingRequestsRouter = Router();
 
 // ── Zod Schemas ──────────────────────────────────────────────────────────────
 const createLeasingRequestSchema = z.object({
-  compressor_type: z.string().min(1, 'Compressor type is required'),
-  brand:           z.string().min(1, 'Brand is required'),
-  duration:        z.string().min(1, 'Duration is required'),
-  hub:             z.string().min(1, 'Mobilization hub is required'),
-  company_name:    z.string().min(1, 'Company name is required'),
-  email:           z.string().email('Valid email address is required'),
-  phone:           z.string().min(5, 'Valid phone number is required'),
-  notes:           z.string().optional().default(''),
+  compressor_type:  z.string().optional(),
+  brand:            z.string().optional(),
+  duration:         z.string().optional(),
+  hub:              z.string().optional(),
+  company_name:     z.string().min(1, 'Company name is required'),
+  email:            z.string().email('Valid email address is required'),
+  phone:            z.string().min(5, 'Valid phone number is required'),
+  notes:            z.string().optional().default(''),
+  name:             z.string().optional(),
+  contact_name:     z.string().optional(),
+  delivery_address: z.string().optional(),
+  equipment_needed: z.string().optional(),
+  flow_rate_cfm:    z.string().optional(),
+  desired_pressure: z.string().optional(),
 });
 
 const updateStatusSchema = z.object({
@@ -26,12 +32,51 @@ const updateStatusSchema = z.object({
 // ── Public: POST /api/leasing-requests ──────────────────────────────────────
 leasingRequestsRouter.post('/', validate(createLeasingRequestSchema), async (req: Request, res: Response) => {
   const d = req.body as z.infer<typeof createLeasingRequestSchema>;
+
+  const contactName = d.contact_name || d.name || '';
+  const deliveryAddress = d.delivery_address || '';
+  const equipment = d.equipment_needed || d.compressor_type || 'Air Compressor';
+  const cfm = d.flow_rate_cfm || '';
+  const pressure = d.desired_pressure || '';
+  const hub = d.hub || deliveryAddress || 'Port Harcourt Yard Dispatch';
+  const duration = d.duration || 'Flexible Project Lease';
+  const brand = d.brand || equipment;
+  const compressorType = cfm && pressure 
+    ? `${equipment} (${cfm} @ ${pressure})`
+    : (d.compressor_type || equipment);
+
+  const formattedNotes = [
+    d.notes,
+    contactName ? `Contact Name: ${contactName}` : '',
+    deliveryAddress ? `Delivery Address: ${deliveryAddress}` : '',
+    cfm ? `CFM / Flow Rate: ${cfm}` : '',
+    pressure ? `Desired Pressure: ${pressure}` : '',
+  ].filter(Boolean).join('\n');
+
   const result = await pool.query(
-    `INSERT INTO leasing_requests (compressor_type, brand, duration, hub, company_name, email, phone, notes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     RETURNING id, compressor_type, brand, duration, hub, company_name, email, phone, status, notes, created_at, updated_at`,
-    [d.compressor_type, d.brand, d.duration, d.hub, d.company_name, d.email, d.phone, d.notes || null]
+    `INSERT INTO leasing_requests (
+      compressor_type, brand, duration, hub, company_name, email, phone, notes,
+      contact_name, delivery_address, equipment_needed, flow_rate_cfm, desired_pressure
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    RETURNING *`,
+    [
+      compressorType,
+      brand,
+      duration,
+      hub,
+      d.company_name,
+      d.email,
+      d.phone,
+      formattedNotes || null,
+      contactName || null,
+      deliveryAddress || null,
+      equipment || null,
+      cfm || null,
+      pressure || null,
+    ]
   );
+
   res.status(201).json({
     message: 'Leasing and rental inquiry submitted successfully. A Mandtech fleet specialist will contact you within 24 hours.',
     data: result.rows[0],
