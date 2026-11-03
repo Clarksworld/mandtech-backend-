@@ -6,28 +6,41 @@ import { AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
-/** Auto-generate invoice number: INV-YYYY-XXXX */
-function generateInvoiceNumber(): string {
+/** Auto-generate document number: QT-YYYY-XXXX or INV-YYYY-XXXX */
+function generateDocNumber(type: string = 'quotation'): string {
   const year = new Date().getFullYear();
   const rand = Math.floor(1000 + Math.random() * 9000);
-  return `INV-${year}-${rand}`;
+  const prefix = type === 'invoice' ? 'INV' : 'QT';
+  return `${prefix}-${year}-${rand}`;
 }
 
 const lineItemSchema = z.object({
-  description: z.string().min(1),
-  qty:         z.number().min(1),
-  unit_price:  z.number().min(0),
+  sn:           z.number().optional(),
+  part_number:  z.string().optional().default(''),
+  product_name: z.string().optional().default(''),
+  description:  z.string().optional().default(''),
+  qty:          z.number().min(1),
+  unit_price:   z.number().min(0),
+  total:        z.number().optional(),
 });
 
 const invoiceSchema = z.object({
+  doc_type:        z.enum(['quotation', 'invoice']).optional().default('quotation'),
+  invoice_number:  z.string().optional(),
   company:         z.string().min(1),
   contact_name:    z.string().min(1),
+  contact_phone:   z.string().optional().default(''),
   email:           z.string().email(),
   billing_address: z.string().optional().default(''),
+  sales_person:    z.string().optional().default(''),
+  client_ref:      z.string().optional().default(''),
   line_items:      z.array(lineItemSchema).min(1),
   discount_pct:    z.number().min(0).max(100).default(0),
   vat_rate_pct:    z.number().min(0).max(100).default(7.5),
   delivery_terms:  z.string().optional().default('EXW - Ex Works'),
+  bank_details:    z.string().optional().default(''),
+  amount_in_words: z.string().optional().default(''),
+  terms:           z.string().optional().default(''),
   currency:        z.string().optional().default('NGN'),
   notes:           z.string().optional().default(''),
   status:          z.enum(['draft', 'sent', 'paid', 'cancelled']).default('draft'),
@@ -92,24 +105,30 @@ router.post(['/', '/admin'], validate(invoiceSchema), async (req: AuthRequest, r
     d.line_items, d.discount_pct, d.vat_rate_pct
   );
 
-  let invoiceNumber = generateInvoiceNumber();
-  // Ensure uniqueness (retry on collision)
-  for (let i = 0; i < 3; i++) {
-    const existing = await pool.query('SELECT id FROM invoices WHERE invoice_number = $1', [invoiceNumber]);
-    if (!existing.rows[0]) break;
-    invoiceNumber = generateInvoiceNumber();
+  let docNumber = d.invoice_number?.trim();
+  if (!docNumber) {
+    docNumber = generateDocNumber(d.doc_type);
+    // Ensure uniqueness (retry on collision)
+    for (let i = 0; i < 3; i++) {
+      const existing = await pool.query('SELECT id FROM invoices WHERE invoice_number = $1', [docNumber]);
+      if (!existing.rows[0]) break;
+      docNumber = generateDocNumber(d.doc_type);
+    }
   }
 
   const createdBy = req.user?.id ?? null;
   const result = await pool.query(
     `INSERT INTO invoices
-       (invoice_number, company, contact_name, email, billing_address, line_items,
-        discount_pct, vat_rate_pct, delivery_terms, currency, notes, status,
+       (invoice_number, company, contact_name, contact_phone, email, billing_address,
+        sales_person, client_ref, doc_type, bank_details, amount_in_words, terms,
+        line_items, discount_pct, vat_rate_pct, delivery_terms, currency, notes, status,
         subtotal, discount_amount, vat_amount, total, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
      RETURNING *`,
     [
-      invoiceNumber, d.company, d.contact_name, d.email, d.billing_address,
+      docNumber, d.company, d.contact_name, d.contact_phone || '', d.email, d.billing_address || '',
+      d.sales_person || '', d.client_ref || '', d.doc_type || 'quotation', d.bank_details || '',
+      d.amount_in_words || '', d.terms || '',
       JSON.stringify(d.line_items), d.discount_pct, d.vat_rate_pct, d.delivery_terms,
       d.currency, d.notes, d.status,
       subtotal, discountAmount, vatAmount, total, createdBy,
@@ -128,14 +147,17 @@ router.put(['/:id', '/admin/:id'], validate(invoiceSchema), async (req: Request,
 
   const result = await pool.query(
     `UPDATE invoices SET
-       company=$1, contact_name=$2, email=$3, billing_address=$4,
-       line_items=$5, discount_pct=$6, vat_rate_pct=$7, delivery_terms=$8,
-       currency=$9, notes=$10, status=$11,
-       subtotal=$12, discount_amount=$13, vat_amount=$14, total=$15,
+       company=$1, contact_name=$2, contact_phone=$3, email=$4, billing_address=$5,
+       sales_person=$6, client_ref=$7, doc_type=$8, bank_details=$9, amount_in_words=$10,
+       terms=$11, line_items=$12, discount_pct=$13, vat_rate_pct=$14, delivery_terms=$15,
+       currency=$16, notes=$17, status=$18,
+       subtotal=$19, discount_amount=$20, vat_amount=$21, total=$22,
        updated_at=NOW()
-     WHERE id=$16 RETURNING *`,
+     WHERE id=$23 RETURNING *`,
     [
-      d.company, d.contact_name, d.email, d.billing_address,
+      d.company, d.contact_name, d.contact_phone || '', d.email, d.billing_address || '',
+      d.sales_person || '', d.client_ref || '', d.doc_type || 'quotation', d.bank_details || '',
+      d.amount_in_words || '', d.terms || '',
       JSON.stringify(d.line_items), d.discount_pct, d.vat_rate_pct, d.delivery_terms,
       d.currency, d.notes, d.status,
       subtotal, discountAmount, vatAmount, total,
