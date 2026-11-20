@@ -19,13 +19,15 @@ import { Resend } from 'resend';
 let _gmailTransporter: Transporter | null = null;
 function getGmailTransporter(): Transporter | null {
   const user = process.env.GMAIL_USER || process.env.SMTP_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || process.env.SMTP_PASSWORD;
-  if (!user || !pass) return null;
+  const rawPass = process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || process.env.SMTP_PASSWORD;
+  if (!user || !rawPass) return null;
+
+  const pass = rawPass.replace(/\s+/g, '');
 
   if (!_gmailTransporter) {
     _gmailTransporter = nodemailer.createTransport({
       service: 'gmail',
-      auth: { user, pass },
+      auth: { user: user.trim(), pass },
     });
   }
   return _gmailTransporter;
