@@ -1,16 +1,35 @@
 /**
- * Mandtech Email Service — powered by Resend
+ * Mandtech Email Service — Supports Gmail SMTP (Nodemailer) & Resend
  * Provides branded HTML email templates for all transactional events.
  *
- * Required env vars:
- *   RESEND_API_KEY     — from https://resend.com (required to send)
- *   EMAIL_FROM         — verified sender, e.g. "Mandtech <noreply@mandtech.com.ng>"
- *   ADMIN_EMAIL        — internal alert recipient, e.g. "ops@mandtech.com.ng"
+ * For Gmail:
+ *   GMAIL_USER         — your Gmail address (e.g. mandtechservices@gmail.com)
+ *   GMAIL_APP_PASSWORD — 16-character Google App Password (not your normal password)
+ *   EMAIL_FROM         — (optional) display name e.g. "Mandtech Services <mandtechservices@gmail.com>"
  *
- * When RESEND_API_KEY is not set, emails are skipped silently (safe for local dev).
+ * For Resend (optional fallback):
+ *   RESEND_API_KEY     — from https://resend.com
+ *
+ * When neither is set, emails are skipped safely.
  */
 
+import nodemailer, { Transporter } from 'nodemailer';
 import { Resend } from 'resend';
+
+let _gmailTransporter: Transporter | null = null;
+function getGmailTransporter(): Transporter | null {
+  const user = process.env.GMAIL_USER || process.env.SMTP_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || process.env.SMTP_PASSWORD;
+  if (!user || !pass) return null;
+
+  if (!_gmailTransporter) {
+    _gmailTransporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user, pass },
+    });
+  }
+  return _gmailTransporter;
+}
 
 let _resendClient: Resend | null = null;
 function getResendClient(): Resend | null {
@@ -21,23 +40,40 @@ function getResendClient(): Resend | null {
 }
 
 const SITE = 'https://mandtech-1chv.vercel.app';
-const getAdminEmail = () => process.env.ADMIN_EMAIL || 'info@mandtech.com.ng';
+const getAdminEmail = () => process.env.ADMIN_EMAIL || process.env.GMAIL_USER || 'info@mandtech.com.ng';
 
 /* ─── safe send wrapper ─────────────────────────────────────── */
 async function sendEmail(to: string, subject: string, html: string): Promise<void> {
-  const resend = getResendClient();
-  const from = process.env.EMAIL_FROM || 'Mandtech Services <onboarding@resend.dev>';
+  const gmail = getGmailTransporter();
+  const gmailUser = process.env.GMAIL_USER || process.env.SMTP_USER;
+  const from = process.env.EMAIL_FROM || (gmailUser ? `Mandtech Services <${gmailUser}>` : 'Mandtech Services <onboarding@resend.dev>');
 
-  if (!resend) {
-    console.log(`[EMAIL SKIPPED — no RESEND_API_KEY] To: ${to} | ${subject}`);
-    return;
+  // 1. Try Gmail SMTP if configured
+  if (gmail) {
+    try {
+      const info = await gmail.sendMail({ from, to, subject, html });
+      console.log(`[GMAIL SENT] To: ${to} | ${subject} (messageId: ${info.messageId})`);
+      return;
+    } catch (err) {
+      console.error('[GMAIL SEND ERROR]', err);
+    }
   }
-  try {
-    const { error } = await resend.emails.send({ from, to, subject, html });
-    if (error) console.error('[EMAIL ERROR]', error);
-    else console.log(`[EMAIL SENT] To: ${to} | ${subject}`);
-  } catch (err) {
-    console.error('[EMAIL EXCEPTION]', err);
+
+  // 2. Fallback to Resend if configured
+  const resend = getResendClient();
+  if (resend) {
+    try {
+      const { error } = await resend.emails.send({ from, to, subject, html });
+      if (error) console.error('[RESEND ERROR]', error);
+      else console.log(`[RESEND SENT] To: ${to} | ${subject}`);
+      return;
+    } catch (err) {
+      console.error('[RESEND EXCEPTION]', err);
+    }
+  }
+
+  if (!gmail && !resend) {
+    console.log(`[EMAIL SKIPPED — neither GMAIL nor RESEND configured] To: ${to} | ${subject}`);
   }
 }
 
