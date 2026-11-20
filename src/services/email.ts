@@ -12,20 +12,28 @@
 
 import { Resend } from 'resend';
 
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+let _resendClient: Resend | null = null;
+function getResendClient(): Resend | null {
+  if (!_resendClient && process.env.RESEND_API_KEY) {
+    _resendClient = new Resend(process.env.RESEND_API_KEY);
+  }
+  return _resendClient;
+}
 
-const FROM    = process.env.EMAIL_FROM   || 'Mandtech Services <noreply@mandtech.com.ng>';
-const ADMIN   = process.env.ADMIN_EMAIL  || 'info@mandtech.com.ng';
-const SITE    = 'https://mandtech-1chv.vercel.app';
+const SITE = 'https://mandtech-1chv.vercel.app';
+const getAdminEmail = () => process.env.ADMIN_EMAIL || 'info@mandtech.com.ng';
 
 /* ─── safe send wrapper ─────────────────────────────────────── */
 async function sendEmail(to: string, subject: string, html: string): Promise<void> {
+  const resend = getResendClient();
+  const from = process.env.EMAIL_FROM || 'Mandtech Services <onboarding@resend.dev>';
+
   if (!resend) {
     console.log(`[EMAIL SKIPPED — no RESEND_API_KEY] To: ${to} | ${subject}`);
     return;
   }
   try {
-    const { error } = await resend.emails.send({ from: FROM, to, subject, html });
+    const { error } = await resend.emails.send({ from, to, subject, html });
     if (error) console.error('[EMAIL ERROR]', error);
     else console.log(`[EMAIL SENT] To: ${to} | ${subject}`);
   } catch (err) {
@@ -218,7 +226,7 @@ export async function sendAdminOrderAlert(order: {
     <a href="https://mandtech-admin.vercel.app" class="btn" style="background:#dc2626;">Open Admin Dashboard →</a>
   `);
 
-  await sendEmail(ADMIN, `🛒 NEW ORDER ${order.id} — ${order.company} (${order.items.length} items)`, html);
+  await sendEmail(getAdminEmail(), `🛒 NEW ORDER ${order.id} — ${order.company} (${order.items.length} items)`, html);
 }
 
 /* ── 4. Inquiry Acknowledgment (to customer) ─────────────── */
@@ -285,3 +293,4 @@ export async function sendWelcomeEmail(user: {
 
   await sendEmail(user.email, `Welcome to Mandtech Services — Account Confirmed`, html);
 }
+
