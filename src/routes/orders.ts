@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { pool } from '../db';
 import { validate } from '../middleware/validate';
+import { sendOrderConfirmation, sendAdminOrderAlert, sendOrderStatusUpdate } from '../services/email';
 
 export const ordersRouter = Router();
 export const adminOrdersRouter = Router();
@@ -72,6 +73,31 @@ ordersRouter.post('/', validate(createOrderSchema), async (req: Request, res: Re
   res.status(201).json({
     message: 'Order placed successfully. Your yard tracking reference is generated.',
     order: result.rows[0],
+  });
+
+  // Fire-and-forget emails (do NOT await — keep response fast)
+  const o = result.rows[0];
+  sendOrderConfirmation({
+    id: o.id,
+    customer_name: o.customer_name,
+    company: o.company,
+    email: o.email,
+    phone: o.phone,
+    fulfillment_hub: o.fulfillment_hub,
+    delivery_address: o.delivery_address,
+    items: Array.isArray(o.items) ? o.items : JSON.parse(o.items || '[]'),
+    notes: o.notes,
+  });
+  sendAdminOrderAlert({
+    id: o.id,
+    customer_name: o.customer_name,
+    company: o.company,
+    email: o.email,
+    phone: o.phone,
+    fulfillment_hub: o.fulfillment_hub,
+    delivery_address: o.delivery_address,
+    items: Array.isArray(o.items) ? o.items : JSON.parse(o.items || '[]'),
+    notes: o.notes,
   });
 });
 
@@ -218,6 +244,20 @@ adminOrdersRouter.patch('/:id/status', validate(updateOrderStatusSchema), async 
   );
 
   res.json({ message: 'Order status updated', order: result.rows[0] });
+
+  // Fire-and-forget status update email to customer
+  const updated = result.rows[0];
+  if (updated && updated.email) {
+    sendOrderStatusUpdate({
+      id: updated.id,
+      customer_name: updated.customer_name,
+      email: updated.email,
+      company: updated.company,
+      status: updated.status,
+      fulfillment_hub: updated.fulfillment_hub,
+      note: note || undefined,
+    });
+  }
 });
 
 // ── Admin: DELETE /api/admin/orders/:id ──

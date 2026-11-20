@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { pool } from '../db';
 import { validate } from '../middleware/validate';
 import { requireAuth } from '../middleware/auth';
+import { sendWelcomeEmail } from '../services/email';
 
 const router = Router();
 
@@ -54,6 +55,9 @@ router.post('/register', validate(registerCustomerSchema), async (req: Request, 
     token,
     user: newUser,
   });
+
+  // Fire-and-forget welcome email
+  sendWelcomeEmail({ name: newUser.name, email: newUser.email, company: newUser.company });
 });
 
 // POST /api/auth/login

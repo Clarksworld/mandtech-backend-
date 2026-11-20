@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { pool } from '../db';
 import { validate } from '../middleware/validate';
+import { sendInquiryAck } from '../services/email';
 
 export const inquiriesRouter = Router();
 export const adminInquiriesRouter = Router();
@@ -28,6 +29,15 @@ inquiriesRouter.post('/', validate(inquirySchema), async (req: Request, res: Res
   res.status(201).json({
     message: 'Inquiry submitted successfully. A regional coordinator will respond within 2 hours.',
     data: result.rows[0],
+  });
+
+  // Fire-and-forget acknowledgment email to customer
+  sendInquiryAck({
+    name: d.name,
+    company: d.company,
+    email: d.email,
+    message: d.message,
+    equipment_interests: d.equipment_interests,
   });
 });
 
