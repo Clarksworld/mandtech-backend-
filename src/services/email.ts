@@ -15,6 +15,13 @@
 
 import nodemailer, { Transporter } from 'nodemailer';
 import { Resend } from 'resend';
+import { generateInvoicePdf, InvoicePdfData } from './pdf';
+
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+}
 
 let _gmailTransporter: Transporter | null = null;
 function getGmailTransporter(): Transporter | null {
@@ -46,6 +53,15 @@ const getAdminEmail = () => process.env.ADMIN_EMAIL || process.env.GMAIL_USER ||
 
 /* ─── safe send wrapper ─────────────────────────────────────── */
 async function sendEmail(to: string, subject: string, html: string): Promise<void> {
+  return sendEmailWithAttachment(to, subject, html);
+}
+
+export async function sendEmailWithAttachment(
+  to: string,
+  subject: string,
+  html: string,
+  attachments?: EmailAttachment[]
+): Promise<void> {
   const gmail = getGmailTransporter();
   const gmailUser = process.env.GMAIL_USER || process.env.SMTP_USER;
   const from = process.env.EMAIL_FROM || (gmailUser ? `Mandtech Services <${gmailUser}>` : 'Mandtech Services <onboarding@resend.dev>');
@@ -53,7 +69,17 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
   // 1. Try Gmail SMTP if configured
   if (gmail) {
     try {
-      const info = await gmail.sendMail({ from, to, subject, html });
+      const info = await gmail.sendMail({
+        from,
+        to,
+        subject,
+        html,
+        attachments: attachments?.map((a) => ({
+          filename: a.filename,
+          content: a.content,
+          contentType: a.contentType || 'application/pdf',
+        })),
+      });
       console.log(`[GMAIL SENT] To: ${to} | ${subject} (messageId: ${info.messageId})`);
       return;
     } catch (err) {
@@ -65,7 +91,16 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
   const resend = getResendClient();
   if (resend) {
     try {
-      const { error } = await resend.emails.send({ from, to, subject, html });
+      const { error } = await resend.emails.send({
+        from,
+        to,
+        subject,
+        html,
+        attachments: attachments?.map((a) => ({
+          filename: a.filename,
+          content: a.content,
+        })),
+      });
       if (error) console.error('[RESEND ERROR]', error);
       else console.log(`[RESEND SENT] To: ${to} | ${subject}`);
       return;
@@ -330,5 +365,103 @@ export async function sendWelcomeEmail(user: {
   `);
 
   await sendEmail(user.email, `Welcome to Mandtech Services — Account Confirmed`, html);
+}
+
+/* ── 6. Admin Quotation & Invoice Background Dispatch ──────── */
+export async function sendQuotationInvoiceEmail(
+  invoice: InvoicePdfData,
+  publicPdfUrl?: string
+): Promise<void> {
+  const isInvoice = invoice.doc_type === 'invoice';
+  const docTitle = isInvoice ? 'Commercial Tax Invoice' : 'Formal Commercial Quotation';
+  const docRef = invoice.invoice_number;
+
+  const pdfBuffer = await generateInvoicePdf(invoice);
+
+  const formatNaira = (num: number) =>
+    Number(num || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const lineItemsRows = (invoice.line_items || []).map((item, idx) => `
+    <tr>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #475569;">${idx + 1}</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; font-weight: 700; color: #0f172a;">${item.part_number || 'OEM'}</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #334155;">${item.product_name || item.description || 'Equipment Requisition'}</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: center; color: #475569;">${item.qty}</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: right; color: #475569;">=N= ${formatNaira(item.unit_price)}</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: right; font-weight: 700; color: #0f172a;">=N= ${formatNaira(item.total !== undefined ? item.total : item.qty * item.unit_price)}</td>
+    </tr>
+  `).join('');
+
+  const html = layout(`
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px 22px; margin-bottom: 22px;">
+      <div style="border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 14px;">
+        <span style="font-size: 11px; font-weight: 800; color: #16a34a; text-transform: uppercase; letter-spacing: 0.6px;">MANDTECH COMMERCIAL ENGINEERING</span>
+        <h2 style="font-size: 18px; font-weight: 900; color: #0f172a; margin: 4px 0 0;">${docTitle}</h2>
+        <div style="font-size: 13px; font-weight: 800; color: #15803d; font-family: monospace; margin-top: 4px;">REF: ${docRef}</div>
+      </div>
+      <p style="margin: 0; font-size: 13.5px; color: #334155; line-height: 1.5;">
+        Dear <strong>${invoice.company}</strong> (Attn: ${invoice.contact_name || 'Procurement Desk'}),<br/>
+        Please find attached our official ${docTitle.toLowerCase()} and technical pricing for your machinery &amp; component requisition.
+      </p>
+    </div>
+
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+      <thead>
+        <tr style="background-color: #0f172a; color: #ffffff;">
+          <th style="padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 800;">S/N</th>
+          <th style="padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 800;">PART/CODE</th>
+          <th style="padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 800;">DESCRIPTION</th>
+          <th style="padding: 8px 12px; text-align: center; font-size: 11px; font-weight: 800;">QTY</th>
+          <th style="padding: 8px 12px; text-align: right; font-size: 11px; font-weight: 800;">UNIT (=N=)</th>
+          <th style="padding: 8px 12px; text-align: right; font-size: 11px; font-weight: 800;">TOTAL (=N=)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${lineItemsRows}
+      </tbody>
+    </table>
+
+    <div style="background-color: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px; text-align: right;">
+      <div style="font-size: 12px; color: #475569; margin-bottom: 4px;">Grand Total Contract Value:</div>
+      <div style="font-size: 22px; font-weight: 900; color: #15803d; font-family: monospace;">=N= ${formatNaira(invoice.total)}</div>
+      ${invoice.amount_in_words ? `<div style="font-size: 12px; font-weight: 700; color: #1e293b; margin-top: 4px;">(${invoice.amount_in_words})</div>` : ''}
+    </div>
+
+    <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
+      <h4 style="font-size: 12px; font-weight: 800; color: #0f172a; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.5px;">Designated Sterling Bank Settlement Account:</h4>
+      <div style="font-size: 13px; color: #334155; line-height: 1.6;">
+        <strong>Bank Name:</strong> Sterling Bank Plc<br/>
+        <strong>Account Name:</strong> MANDTECH SERVICES LIMITED<br/>
+        <strong>Account Number:</strong> <span style="font-size: 14px; font-weight: 900; color: #15803d;">01433839162</span> (NGN Current)<br/>
+        <strong>TIN:</strong> 33865000001
+      </div>
+    </div>
+
+    ${publicPdfUrl ? `
+      <div style="text-align: center; margin: 26px 0;">
+        <a href="${publicPdfUrl}" style="background-color: #16a34a; color: #ffffff; padding: 13px 26px; border-radius: 6px; font-size: 14px; font-weight: 800; text-decoration: none; display: inline-block;">
+          📄 View / Download Official PDF Quotation
+        </a>
+      </div>
+    ` : ''}
+
+    <div style="font-size: 12px; color: #64748b; line-height: 1.6; border-top: 1px solid #e2e8f0; padding-top: 14px;">
+      <strong>Delivery &amp; Commercial Terms:</strong><br/>
+      ${(invoice.terms || 'Delivery within 21 working days after 100% advance payment & LPO. 14 calendar days quote validity.').replace(/\n/g, '<br/>')}
+    </div>
+  `);
+
+  await sendEmailWithAttachment(
+    invoice.email,
+    `${docTitle} — Ref ${docRef} | Mandtech Services Limited`,
+    html,
+    [
+      {
+        filename: `Mandtech-${docRef}.pdf`,
+        content: pdfBuffer,
+        contentType: 'application/pdf',
+      },
+    ]
+  );
 }
 

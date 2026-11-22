@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { pool } from '../db';
 import { validate } from '../middleware/validate';
 import { AuthRequest } from '../middleware/auth';
+import { generateInvoicePdf } from '../services/pdf';
+import { sendQuotationInvoiceEmail } from '../services/email';
 
 const router = Router();
 
@@ -199,6 +201,50 @@ router.delete(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
     [req.params.id]
   );
   res.json({ message: 'Invoice cancelled' });
+});
+
+// ── Public / Admin: GET /api/admin/invoices/:id/pdf ─────────────────────
+router.get(['/:id/pdf', '/admin/:id/pdf'], async (req: Request, res: Response) => {
+  const result = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+  if (!result.rows[0]) {
+    res.status(404).json({ error: 'Invoice not found' });
+    return;
+  }
+  const invoice = result.rows[0];
+  const pdfBuffer = await generateInvoicePdf(invoice);
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="Mandtech-${invoice.invoice_number}.pdf"`);
+  res.setHeader('Content-Length', pdfBuffer.length);
+  res.send(pdfBuffer);
+});
+
+// ── Admin: POST /api/admin/invoices/:id/send-email ─────────────────────
+router.post(['/:id/send-email', '/admin/:id/send-email'], async (req: Request, res: Response) => {
+  const result = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+  if (!result.rows[0]) {
+    res.status(404).json({ error: 'Invoice not found' });
+    return;
+  }
+  const invoice = result.rows[0];
+
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const host = req.headers['x-forwarded-host'] || req.get('host') || 'mandtech-backend-1chv.vercel.app';
+  const publicPdfUrl = `${protocol}://${host}/api/public/invoices/${invoice.id}/pdf`;
+
+  await sendQuotationInvoiceEmail(invoice, publicPdfUrl);
+
+  const updated = await pool.query(
+    "UPDATE invoices SET status='sent', updated_at=NOW() WHERE id=$1 RETURNING *",
+    [invoice.id]
+  );
+
+  res.json({
+    success: true,
+    message: `Quotation ${invoice.invoice_number} dispatched to ${invoice.email} via background email with PDF attached.`,
+    data: updated.rows[0],
+    pdf_url: publicPdfUrl,
+  });
 });
 
 export default router;

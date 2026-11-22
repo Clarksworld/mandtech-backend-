@@ -21,6 +21,8 @@ import { documentsRouter, adminDocumentsRouter }   from './routes/documents';
 import adminRouter                                 from './routes/admin';
 import invoicesRouter                              from './routes/invoices';
 import projectsRouter, { tasksRouter }             from './routes/projects';
+import { pool }                                     from './db';
+import { generateInvoicePdf }                      from './services/pdf';
 
 dotenv.config();
 
@@ -123,6 +125,22 @@ app.use('/api/lubricant-requests', lubricantRequestsRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/tickets',   ticketsRouter);
 app.use('/api/documents', documentsRouter);
+
+// ── Public Quotation / Invoice PDF Download (for WhatsApp & Email links) ──
+app.get(['/api/public/invoices/:id/pdf', '/api/invoices/:id/pdf'], async (req: Request, res: Response) => {
+  const result = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+  if (!result.rows[0]) {
+    res.status(404).json({ error: 'Quotation / Invoice not found' });
+    return;
+  }
+  const invoice = result.rows[0];
+  const pdfBuffer = await generateInvoicePdf(invoice);
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="Mandtech-${invoice.invoice_number}.pdf"`);
+  res.setHeader('Content-Length', pdfBuffer.length);
+  res.send(pdfBuffer);
+});
 
 // ── Admin-only routes (JWT required) ─────────────────────
 app.use('/api/admin/products',  requireAuth, adminProductsRouter);
