@@ -126,6 +126,30 @@ router.post(['/', '/admin'], validate(invoiceSchema), async (req: AuthRequest, r
         line_items, discount_pct, vat_rate_pct, delivery_terms, currency, notes, status,
         subtotal, discount_amount, vat_amount, total, created_by)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+     ON CONFLICT (invoice_number) DO UPDATE SET
+       company = EXCLUDED.company,
+       contact_name = EXCLUDED.contact_name,
+       contact_phone = EXCLUDED.contact_phone,
+       email = EXCLUDED.email,
+       billing_address = EXCLUDED.billing_address,
+       sales_person = EXCLUDED.sales_person,
+       client_ref = EXCLUDED.client_ref,
+       doc_type = EXCLUDED.doc_type,
+       bank_details = EXCLUDED.bank_details,
+       amount_in_words = EXCLUDED.amount_in_words,
+       terms = EXCLUDED.terms,
+       line_items = EXCLUDED.line_items,
+       discount_pct = EXCLUDED.discount_pct,
+       vat_rate_pct = EXCLUDED.vat_rate_pct,
+       delivery_terms = EXCLUDED.delivery_terms,
+       currency = EXCLUDED.currency,
+       notes = EXCLUDED.notes,
+       status = EXCLUDED.status,
+       subtotal = EXCLUDED.subtotal,
+       discount_amount = EXCLUDED.discount_amount,
+       vat_amount = EXCLUDED.vat_amount,
+       total = EXCLUDED.total,
+       updated_at = NOW()
      RETURNING *`,
     [
       docNumber, d.company, d.contact_name, d.contact_phone || '', d.email, d.billing_address || '',
