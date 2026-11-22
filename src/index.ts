@@ -128,7 +128,10 @@ app.use('/api/documents', documentsRouter);
 
 // ── Public Quotation / Invoice PDF Download (for WhatsApp & Email links) ──
 app.get(['/api/public/invoices/:id/pdf', '/api/invoices/:id/pdf'], async (req: Request, res: Response) => {
-  const result = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+  const result = await pool.query(
+    'SELECT * FROM invoices WHERE id::text = $1 OR invoice_number = $1',
+    [req.params.id]
+  );
   if (!result.rows[0]) {
     res.status(404).json({ error: 'Quotation / Invoice not found' });
     return;

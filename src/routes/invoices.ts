@@ -205,7 +205,10 @@ router.delete(['/:id', '/admin/:id'], async (req: Request, res: Response) => {
 
 // ── Public / Admin: GET /api/admin/invoices/:id/pdf ─────────────────────
 router.get(['/:id/pdf', '/admin/:id/pdf'], async (req: Request, res: Response) => {
-  const result = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+  const result = await pool.query(
+    'SELECT * FROM invoices WHERE id::text = $1 OR invoice_number = $1',
+    [req.params.id]
+  );
   if (!result.rows[0]) {
     res.status(404).json({ error: 'Invoice not found' });
     return;
@@ -221,7 +224,10 @@ router.get(['/:id/pdf', '/admin/:id/pdf'], async (req: Request, res: Response) =
 
 // ── Admin: POST /api/admin/invoices/:id/send-email ─────────────────────
 router.post(['/:id/send-email', '/admin/:id/send-email'], async (req: Request, res: Response) => {
-  const result = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+  const result = await pool.query(
+    'SELECT * FROM invoices WHERE id::text = $1 OR invoice_number = $1',
+    [req.params.id]
+  );
   if (!result.rows[0]) {
     res.status(404).json({ error: 'Invoice not found' });
     return;
@@ -229,7 +235,7 @@ router.post(['/:id/send-email', '/admin/:id/send-email'], async (req: Request, r
   const invoice = result.rows[0];
 
   const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
-  const host = req.headers['x-forwarded-host'] || req.get('host') || 'mandtech-backend-1chv.vercel.app';
+  const host = req.headers['x-forwarded-host'] || req.get('host') || 'mandtech-backend-rho.vercel.app';
   const publicPdfUrl = `${protocol}://${host}/api/public/invoices/${invoice.id}/pdf`;
 
   await sendQuotationInvoiceEmail(invoice, publicPdfUrl);
