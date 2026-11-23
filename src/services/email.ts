@@ -56,6 +56,26 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
   return sendEmailWithAttachment(to, subject, html);
 }
 
+export function getEmailConfigStatus(): {
+  gmailConfigured: boolean;
+  resendConfigured: boolean;
+  gmailUser?: string;
+  from: string;
+} {
+  const user = process.env.GMAIL_USER || process.env.SMTP_USER;
+  const rawPass = process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || process.env.SMTP_PASSWORD;
+  const gmailConfigured = Boolean(user && rawPass);
+  const resendConfigured = Boolean(process.env.RESEND_API_KEY);
+  const from = process.env.EMAIL_FROM || (user ? `Mandtech Services <${user}>` : 'Mandtech Services <onboarding@resend.dev>');
+
+  return {
+    gmailConfigured,
+    resendConfigured,
+    gmailUser: user ? `${user.slice(0, 3)}***@${user.split('@')[1] || ''}` : undefined,
+    from,
+  };
+}
+
 export async function sendEmailWithAttachment(
   to: string,
   subject: string,
@@ -65,6 +85,8 @@ export async function sendEmailWithAttachment(
   const gmail = getGmailTransporter();
   const gmailUser = process.env.GMAIL_USER || process.env.SMTP_USER;
   const from = process.env.EMAIL_FROM || (gmailUser ? `Mandtech Services <${gmailUser}>` : 'Mandtech Services <onboarding@resend.dev>');
+
+  let lastError: Error | null = null;
 
   // 1. Try Gmail SMTP if configured
   if (gmail) {
@@ -82,8 +104,9 @@ export async function sendEmailWithAttachment(
       });
       console.log(`[GMAIL SENT] To: ${to} | ${subject} (messageId: ${info.messageId})`);
       return;
-    } catch (err) {
+    } catch (err: any) {
       console.error('[GMAIL SEND ERROR]', err);
+      lastError = new Error(`Gmail SMTP failed: ${err.message || err}`);
     }
   }
 
@@ -91,7 +114,7 @@ export async function sendEmailWithAttachment(
   const resend = getResendClient();
   if (resend) {
     try {
-      const { error } = await resend.emails.send({
+      const { data, error } = await resend.emails.send({
         from,
         to,
         subject,
@@ -101,16 +124,28 @@ export async function sendEmailWithAttachment(
           content: a.content,
         })),
       });
-      if (error) console.error('[RESEND ERROR]', error);
-      else console.log(`[RESEND SENT] To: ${to} | ${subject}`);
-      return;
-    } catch (err) {
+      if (error) {
+        console.error('[RESEND ERROR]', error);
+        lastError = new Error(`Resend API failed: ${error.message || JSON.stringify(error)}`);
+      } else {
+        console.log(`[RESEND SENT] To: ${to} | ${subject} (id: ${data?.id})`);
+        return;
+      }
+    } catch (err: any) {
       console.error('[RESEND EXCEPTION]', err);
+      lastError = new Error(`Resend exception: ${err.message || err}`);
     }
   }
 
+  // If neither provider succeeded
   if (!gmail && !resend) {
-    console.log(`[EMAIL SKIPPED — neither GMAIL nor RESEND configured] To: ${to} | ${subject}`);
+    const msg = 'Email delivery skipped: Neither GMAIL (GMAIL_USER + GMAIL_APP_PASSWORD) nor RESEND (RESEND_API_KEY) is configured in Vercel backend environment variables.';
+    console.error(`[EMAIL CONFIG ERROR] ${msg}`);
+    throw new Error(msg);
+  }
+
+  if (lastError) {
+    throw lastError;
   }
 }
 

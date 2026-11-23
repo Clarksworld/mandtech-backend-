@@ -23,6 +23,7 @@ import invoicesRouter                              from './routes/invoices';
 import projectsRouter, { tasksRouter }             from './routes/projects';
 import { pool }                                     from './db';
 import { generateInvoicePdf }                      from './services/pdf';
+import { getEmailConfigStatus }                    from './services/email';
 
 dotenv.config();
 
@@ -62,7 +63,11 @@ import { swaggerDocument } from './swagger';
 
 // ── Health check ──────────────────────────────────────────
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    email: getEmailConfigStatus(),
+  });
 });
 
 // ── Swagger UI & OpenAPI Specification ───────────────────
