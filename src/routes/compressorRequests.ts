@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { pool } from '../db';
 import { validate } from '../middleware/validate';
+import { sendAdminCompressorAlert } from '../services/email';
 
 export const compressorRequestsRouter = Router();
 export const adminCompressorRequestsRouter = Router();
@@ -37,6 +38,19 @@ compressorRequestsRouter.post('/', validate(createRequestSchema), async (req: Re
     message: 'Formal quotation request submitted successfully. A Mandtech technical sales engineer will prepare your quote within 24 hours.',
     data: result.rows[0],
   });
+
+  // Fire-and-forget real-time admin alert email
+  const row = result.rows[0];
+  sendAdminCompressorAlert({
+    id: row.id,
+    compressor_type: row.compressor_type,
+    brand: row.brand,
+    condition: row.condition,
+    company_name: row.company_name,
+    email: row.email,
+    phone: row.phone,
+    notes: row.notes,
+  }).catch((err) => console.error('[EmailAlert] Failed to dispatch compressor alert:', err.message));
 });
 
 // ── Admin: GET /api/admin/compressor-requests/stats ─────────────────

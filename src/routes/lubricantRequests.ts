@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { pool } from '../db';
 import { validate } from '../middleware/validate';
+import { sendAdminLubricantsAlert } from '../services/email';
 
 export const lubricantRequestsRouter = Router();
 export const adminLubricantRequestsRouter = Router();
@@ -36,6 +37,20 @@ lubricantRequestsRouter.post('/', validate(createLubricantRequestSchema), async 
     message: 'Lubricant quotation request submitted successfully. A Mandtech lubricants specialist will contact you within 24 hours.',
     data: result.rows[0],
   });
+
+  // Fire-and-forget real-time admin alert email
+  const row = result.rows[0];
+  sendAdminLubricantsAlert({
+    id: row.id,
+    brand: row.brand,
+    fluid_type: row.fluid_type,
+    volume: row.volume,
+    hub: row.hub,
+    company_name: row.company_name,
+    email: row.email,
+    phone: row.phone,
+    notes: row.notes,
+  }).catch((err) => console.error('[EmailAlert] Failed to dispatch lubricant alert:', err.message));
 });
 
 // ── Admin: GET /api/admin/lubricant-requests/stats ──────────────────────────

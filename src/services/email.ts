@@ -15,6 +15,7 @@
 
 import nodemailer, { Transporter } from 'nodemailer';
 import { Resend } from 'resend';
+import { pool } from '../db';
 import { generateInvoicePdf, InvoicePdfData } from './pdf';
 
 export interface EmailAttachment {
@@ -49,7 +50,26 @@ function getResendClient(): Resend | null {
 }
 
 const SITE = 'https://mandtech-1chv.vercel.app';
-const getAdminEmail = () => process.env.ADMIN_EMAIL || process.env.GMAIL_USER || 'info@mandtech.com.ng';
+const ADMIN_PORTAL = 'https://mandtech-admin.vercel.app';
+const getAdminEmail = () => process.env.ADMIN_ALERT_EMAIL || process.env.ADMIN_EMAIL || process.env.GMAIL_USER || 'mandtechserviceslimited@gmail.com';
+
+export async function getAdminAlertRecipients(): Promise<string[]> {
+  try {
+    const res = await pool.query("SELECT value FROM system_settings WHERE key = 'alert_notifications'");
+    if (res.rows.length > 0 && Array.isArray(res.rows[0].value?.emails) && res.rows[0].value.emails.length > 0) {
+      const valid = res.rows[0].value.emails.map((e: string) => String(e).trim().toLowerCase()).filter(Boolean);
+      if (valid.length > 0) return Array.from(new Set(valid));
+    }
+  } catch (err) {
+    // Non-fatal, fallback to default
+  }
+  return [getAdminEmail()];
+}
+
+export async function sendEmailToAdmins(subject: string, html: string): Promise<void> {
+  const recipients = await getAdminAlertRecipients();
+  await Promise.allSettled(recipients.map((to) => sendEmail(to, subject, html)));
+}
 
 /* ─── safe send wrapper ─────────────────────────────────────── */
 async function sendEmail(to: string, subject: string, html: string): Promise<void> {
@@ -306,24 +326,24 @@ export async function sendAdminOrderAlert(order: {
   phone: string;
   fulfillment_hub: string;
   delivery_address: string;
-  items: Array<{ title: string; category?: string; sku?: string; quantity?: number }>;
+  items: Array<{ title?: string; name?: string; category?: string; sku?: string; quantity?: number; price?: number }>;
   notes?: string | null;
 }): Promise<void> {
   const itemsHtml = order.items.map(it =>
-    `<div class="item-row"><div class="item-title">${it.title}</div><div class="item-meta">${it.category || ''}${it.sku ? ` · SKU: ${it.sku}` : ''}${it.quantity && it.quantity > 1 ? ` · Qty: ${it.quantity}` : ''}</div></div>`
+    `<div class="item-row"><div class="item-title">${it.title || it.name || 'Component'}</div><div class="item-meta">${it.category || ''}${it.sku ? ` · SKU: ${it.sku}` : ''}${it.quantity && it.quantity > 1 ? ` · Qty: ${it.quantity}` : ''}</div></div>`
   ).join('');
 
   const html = layout(`
     <p class="greeting" style="color:#dc2626;">🚨 New Yard Requisition Order</p>
-    <p>A new order has just been placed and requires logistics confirmation.</p>
+    <p>A customer has just submitted an order on the storefront and requires logistics confirmation / quotation.</p>
 
     <div class="info-box">
-      <div class="info-row"><span class="info-label">Order ID</span><span class="info-value" style="font-family:monospace;font-size:15px;">${order.id}</span></div>
-      <div class="info-row"><span class="info-label">Customer</span><span class="info-value">${order.customer_name}</span></div>
+      <div class="info-row"><span class="info-label">Order Ref</span><span class="info-value" style="font-family:monospace;font-size:15px;color:#1e3a8a;">${order.id}</span></div>
+      <div class="info-row"><span class="info-label">Customer</span><span class="info-value"><strong>${order.customer_name}</strong></span></div>
       <div class="info-row"><span class="info-label">Company</span><span class="info-value">${order.company}</span></div>
-      <div class="info-row"><span class="info-label">Email</span><span class="info-value">${order.email}</span></div>
-      <div class="info-row"><span class="info-label">Phone</span><span class="info-value">${order.phone}</span></div>
-      <div class="info-row"><span class="info-label">Hub</span><span class="info-value">${order.fulfillment_hub}</span></div>
+      <div class="info-row"><span class="info-label">Email</span><span class="info-value"><a href="mailto:${order.email}">${order.email}</a></span></div>
+      <div class="info-row"><span class="info-label">Phone</span><span class="info-value"><a href="tel:${order.phone}">${order.phone}</a></span></div>
+      <div class="info-row"><span class="info-label">Fulfillment Hub</span><span class="info-value">${order.fulfillment_hub}</span></div>
       <div class="info-row"><span class="info-label">Delivery To</span><span class="info-value">${order.delivery_address}</span></div>
       ${order.notes ? `<div class="info-row"><span class="info-label">Notes</span><span class="info-value">${order.notes}</span></div>` : ''}
     </div>
@@ -331,10 +351,206 @@ export async function sendAdminOrderAlert(order: {
     <p style="font-weight:700;margin-bottom:8px;">Ordered Items (${order.items.length})</p>
     ${itemsHtml}
 
-    <a href="https://mandtech-admin.vercel.app" class="btn" style="background:#dc2626;">Open Admin Dashboard →</a>
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${ADMIN_PORTAL}" class="btn" style="background:#dc2626;">Open in Admin Dashboard →</a>
+    </div>
   `);
 
-  await sendEmail(getAdminEmail(), `🛒 NEW ORDER ${order.id} — ${order.company} (${order.items.length} items)`, html);
+  await sendEmailToAdmins(`🛒 NEW ORDER ${order.id} — ${order.company || order.customer_name} (${order.items.length} items)`, html);
+}
+
+/* ── 3b. Admin Compressor Quote Request Alert ────────────── */
+export async function sendAdminCompressorAlert(req: {
+  id: string;
+  compressor_type: string;
+  brand: string;
+  condition?: string;
+  company_name: string;
+  email: string;
+  phone: string;
+  notes?: string | null;
+}): Promise<void> {
+  const html = layout(`
+    <p class="greeting" style="color:#059669;">💨 New Air Compressor Quotation Request</p>
+    <p>A new quotation request for industrial air compressors has been submitted from the storefront.</p>
+
+    <div class="info-box">
+      <div class="info-row"><span class="info-label">Reference ID</span><span class="info-value" style="font-family:monospace;font-size:14px;color:#059669;">CMP-${req.id.slice(0, 8).toUpperCase()}</span></div>
+      <div class="info-row"><span class="info-label">Company</span><span class="info-value"><strong>${req.company_name}</strong></span></div>
+      <div class="info-row"><span class="info-label">Compressor Type</span><span class="info-value">${req.compressor_type}</span></div>
+      <div class="info-row"><span class="info-label">Brand / Make</span><span class="info-value">${req.brand}</span></div>
+      <div class="info-row"><span class="info-label">Condition</span><span class="info-value">${req.condition || 'NEW'}</span></div>
+      <div class="info-row"><span class="info-label">Contact Email</span><span class="info-value"><a href="mailto:${req.email}">${req.email}</a></span></div>
+      <div class="info-row"><span class="info-label">Telephone</span><span class="info-value"><a href="tel:${req.phone}">${req.phone}</a></span></div>
+      ${req.notes ? `<div class="info-row"><span class="info-label">Project Notes</span><span class="info-value">${req.notes}</span></div>` : ''}
+    </div>
+
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${ADMIN_PORTAL}" class="btn" style="background:#059669;">Prepare Quotation in Admin →</a>
+    </div>
+  `);
+
+  await sendEmailToAdmins(`💨 COMPRESSOR RFQ — ${req.company_name} (${req.brand} ${req.compressor_type})`, html);
+}
+
+/* ── 3c. Admin Spare Parts Request Alert ─────────────────── */
+export async function sendAdminSparePartsAlert(req: {
+  id: string;
+  brand: string;
+  part_name: string;
+  company_name: string;
+  email: string;
+  phone: string;
+  notes?: string | null;
+}): Promise<void> {
+  const html = layout(`
+    <p class="greeting" style="color:#7c3aed;">🔧 New OEM Spare Parts Request</p>
+    <p>A new spare parts requisition has been submitted from the storefront.</p>
+
+    <div class="info-box">
+      <div class="info-row"><span class="info-label">Reference ID</span><span class="info-value" style="font-family:monospace;font-size:14px;color:#7c3aed;">SPR-${req.id.slice(0, 8).toUpperCase()}</span></div>
+      <div class="info-row"><span class="info-label">Company</span><span class="info-value"><strong>${req.company_name}</strong></span></div>
+      <div class="info-row"><span class="info-label">Brand</span><span class="info-value">${req.brand}</span></div>
+      <div class="info-row"><span class="info-label">Part / Component</span><span class="info-value"><strong>${req.part_name}</strong></span></div>
+      <div class="info-row"><span class="info-label">Contact Email</span><span class="info-value"><a href="mailto:${req.email}">${req.email}</a></span></div>
+      <div class="info-row"><span class="info-label">Telephone</span><span class="info-value"><a href="tel:${req.phone}">${req.phone}</a></span></div>
+      ${req.notes ? `<div class="info-row"><span class="info-label">Notes</span><span class="info-value">${req.notes}</span></div>` : ''}
+    </div>
+
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${ADMIN_PORTAL}" class="btn" style="background:#7c3aed;">View &amp; Quote in Admin →</a>
+    </div>
+  `);
+
+  await sendEmailToAdmins(`🔧 SPARE PARTS RFQ — ${req.company_name} (${req.brand} - ${req.part_name})`, html);
+}
+
+/* ── 3d. Admin Leasing & Rental Request Alert ────────────── */
+export async function sendAdminLeasingAlert(req: {
+  id: string;
+  compressor_type: string;
+  brand: string;
+  duration: string;
+  hub: string;
+  company_name: string;
+  email: string;
+  phone: string;
+  notes?: string | null;
+}): Promise<void> {
+  const html = layout(`
+    <p class="greeting" style="color:#d97706;">🚜 New Equipment Fleet Lease Request</p>
+    <p>A new industrial compressor fleet rental inquiry has been submitted.</p>
+
+    <div class="info-box">
+      <div class="info-row"><span class="info-label">Reference ID</span><span class="info-value" style="font-family:monospace;font-size:14px;color:#d97706;">LSE-${req.id.slice(0, 8).toUpperCase()}</span></div>
+      <div class="info-row"><span class="info-label">Company</span><span class="info-value"><strong>${req.company_name}</strong></span></div>
+      <div class="info-row"><span class="info-label">Equipment</span><span class="info-value">${req.compressor_type} (${req.brand})</span></div>
+      <div class="info-row"><span class="info-label">Tenure / Duration</span><span class="info-value">${req.duration}</span></div>
+      <div class="info-row"><span class="info-label">Fulfillment Hub</span><span class="info-value">${req.hub}</span></div>
+      <div class="info-row"><span class="info-label">Contact Email</span><span class="info-value"><a href="mailto:${req.email}">${req.email}</a></span></div>
+      <div class="info-row"><span class="info-label">Telephone</span><span class="info-value"><a href="tel:${req.phone}">${req.phone}</a></span></div>
+      ${req.notes ? `<div class="info-row"><span class="info-label">Notes</span><span class="info-value">${req.notes}</span></div>` : ''}
+    </div>
+
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${ADMIN_PORTAL}" class="btn" style="background:#d97706;">Prepare Lease Contract in Admin →</a>
+    </div>
+  `);
+
+  await sendEmailToAdmins(`🚜 LEASING REQUEST — ${req.company_name} (${req.duration} lease)`, html);
+}
+
+/* ── 3e. Admin Lubricants & Fluids Request Alert ─────────── */
+export async function sendAdminLubricantsAlert(req: {
+  id: string;
+  brand: string;
+  fluid_type: string;
+  volume: string;
+  hub: string;
+  company_name: string;
+  email: string;
+  phone: string;
+  notes?: string | null;
+}): Promise<void> {
+  const html = layout(`
+    <p class="greeting" style="color:#0d9488;">🛢️ New Lubricants &amp; Special Fluids Inquiry</p>
+    <p>A new OEM fluid procurement request has been submitted.</p>
+
+    <div class="info-box">
+      <div class="info-row"><span class="info-label">Reference ID</span><span class="info-value" style="font-family:monospace;font-size:14px;color:#0d9488;">LUB-${req.id.slice(0, 8).toUpperCase()}</span></div>
+      <div class="info-row"><span class="info-label">Company</span><span class="info-value"><strong>${req.company_name}</strong></span></div>
+      <div class="info-row"><span class="info-label">Fluid Type</span><span class="info-value"><strong>${req.fluid_type}</strong> (${req.brand})</span></div>
+      <div class="info-row"><span class="info-label">Volume / Units</span><span class="info-value">${req.volume}</span></div>
+      <div class="info-row"><span class="info-label">Fulfillment Hub</span><span class="info-value">${req.hub}</span></div>
+      <div class="info-row"><span class="info-label">Contact Email</span><span class="info-value"><a href="mailto:${req.email}">${req.email}</a></span></div>
+      <div class="info-row"><span class="info-label">Telephone</span><span class="info-value"><a href="tel:${req.phone}">${req.phone}</a></span></div>
+      ${req.notes ? `<div class="info-row"><span class="info-label">Notes</span><span class="info-value">${req.notes}</span></div>` : ''}
+    </div>
+
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${ADMIN_PORTAL}" class="btn" style="background:#0d9488;">Quote in Admin →</a>
+    </div>
+  `);
+
+  await sendEmailToAdmins(`🛢️ LUBRICANTS RFQ — ${req.company_name} (${req.brand} ${req.fluid_type})`, html);
+}
+
+/* ── 3f. Admin General Inquiry Alert ─────────────────────── */
+export async function sendAdminInquiryAlert(inquiry: {
+  id?: string;
+  name: string;
+  company: string;
+  email: string;
+  phone?: string;
+  message: string;
+  equipment_interests?: string[];
+}): Promise<void> {
+  const interests = (inquiry.equipment_interests || []).join(', ');
+  const html = layout(`
+    <p class="greeting" style="color:#2563eb;">📩 New Commercial RFQ / Inquiry</p>
+    <p>A new customer inquiry has arrived from the storefront contact form.</p>
+
+    <div class="info-box">
+      <div class="info-row"><span class="info-label">Contact Person</span><span class="info-value"><strong>${inquiry.name}</strong></span></div>
+      <div class="info-row"><span class="info-label">Company</span><span class="info-value">${inquiry.company}</span></div>
+      <div class="info-row"><span class="info-label">Email</span><span class="info-value"><a href="mailto:${inquiry.email}">${inquiry.email}</a></span></div>
+      ${inquiry.phone ? `<div class="info-row"><span class="info-label">Phone</span><span class="info-value"><a href="tel:${inquiry.phone}">${inquiry.phone}</a></span></div>` : ''}
+      ${interests ? `<div class="info-row"><span class="info-label">Interests</span><span class="info-value">${interests}</span></div>` : ''}
+    </div>
+
+    <div style="background-color: #f8fafc; border-left: 4px solid #2563eb; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
+      <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Message:</div>
+      <div style="font-size: 13.5px; color: #1e293b; line-height: 1.5;">${inquiry.message}</div>
+    </div>
+
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${ADMIN_PORTAL}" class="btn" style="background:#2563eb;">View Inquiries in Admin →</a>
+    </div>
+  `);
+
+  await sendEmailToAdmins(`📩 NEW INQUIRY — ${inquiry.company || inquiry.name}`, html);
+}
+
+/* ── 3g. Admin Test Alert Email ──────────────────────────── */
+export async function sendTestAdminAlert(recipients: string[]): Promise<void> {
+  const html = layout(`
+    <p class="greeting" style="color:#16a34a;">✅ Admin Alert Notification Test</p>
+    <p>This is a verification email confirming that your email alert recipients are properly configured and operational.</p>
+
+    <div class="info-box">
+      <div class="info-row"><span class="info-label">Status</span><span class="info-value" style="color:#16a34a;font-weight:800;">ACTIVE &amp; VERIFIED</span></div>
+      <div class="info-row"><span class="info-label">Dispatched At</span><span class="info-value">${new Date().toUTCString()}</span></div>
+      <div class="info-row"><span class="info-label">Configured Recipients</span><span class="info-value">${recipients.join(', ')}</span></div>
+    </div>
+
+    <p style="color:#475569;font-size:13px;">Whenever any customer submits an order, compressor RFQ, spare parts request, leasing inquiry, or message on the storefront, instant notification alerts will be delivered to this inbox.</p>
+
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${ADMIN_PORTAL}" class="btn" style="background:#16a34a;">Go to Admin Dashboard →</a>
+    </div>
+  `);
+
+  await Promise.all(recipients.map((to) => sendEmail(to, `✅ Mandtech Alert Notification Test — Successful`, html)));
 }
 
 /* ── 4. Inquiry Acknowledgment (to customer) ─────────────── */

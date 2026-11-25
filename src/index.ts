@@ -21,6 +21,7 @@ import { documentsRouter, adminDocumentsRouter }   from './routes/documents';
 import adminRouter                                 from './routes/admin';
 import invoicesRouter                              from './routes/invoices';
 import projectsRouter, { tasksRouter }             from './routes/projects';
+import { settingsRouter }                          from './routes/settings';
 import { pool }                                     from './db';
 import { generateInvoicePdf }                      from './services/pdf';
 import { getEmailConfigStatus }                    from './services/email';
@@ -164,6 +165,7 @@ app.use('/api/admin/documents', requireAuth, adminDocumentsRouter);
 app.use('/api/admin/invoices',  requireAuth, invoicesRouter);
 app.use('/api/admin/projects',  requireAuth, projectsRouter);
 app.use('/api/admin/tasks',     requireAuth, tasksRouter);
+app.use('/api/admin/settings',  requireAuth, settingsRouter);
 app.use('/api/admin',           requireAuth, adminRouter);
 
 // ── Global error handler ──────────────────────────────────

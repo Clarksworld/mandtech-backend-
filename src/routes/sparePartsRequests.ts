@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { pool } from '../db';
 import { validate } from '../middleware/validate';
+import { sendAdminSparePartsAlert } from '../services/email';
 
 export const sparePartsRequestsRouter = Router();
 export const adminSparePartsRequestsRouter = Router();
@@ -67,6 +68,18 @@ sparePartsRequestsRouter.post('/', validate(createRequestSchema), async (req: Re
     message: 'Spare parts request submitted successfully. A Mandtech parts specialist will contact you within 24 hours.',
     data: result.rows[0],
   });
+
+  // Fire-and-forget real-time admin alert email
+  const row = result.rows[0];
+  sendAdminSparePartsAlert({
+    id: row.id,
+    brand: row.brand,
+    part_name: row.part_name,
+    company_name: row.company_name,
+    email: row.email,
+    phone: row.phone,
+    notes: row.notes,
+  }).catch((err) => console.error('[EmailAlert] Failed to dispatch spare parts alert:', err.message));
 });
 
 // ── Admin: GET /api/admin/spare-parts-requests/stats ───────────────────────

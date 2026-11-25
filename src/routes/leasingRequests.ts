@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { pool } from '../db';
 import { validate } from '../middleware/validate';
+import { sendAdminLeasingAlert } from '../services/email';
 
 export const leasingRequestsRouter = Router();
 export const adminLeasingRequestsRouter = Router();
@@ -81,6 +82,20 @@ leasingRequestsRouter.post('/', validate(createLeasingRequestSchema), async (req
     message: 'Leasing and rental inquiry submitted successfully. A Mandtech fleet specialist will contact you within 24 hours.',
     data: result.rows[0],
   });
+
+  // Fire-and-forget real-time admin alert email
+  const row = result.rows[0];
+  sendAdminLeasingAlert({
+    id: row.id,
+    compressor_type: row.compressor_type || row.equipment_needed || 'Air Compressor',
+    brand: row.brand,
+    duration: row.duration,
+    hub: row.hub,
+    company_name: row.company_name,
+    email: row.email,
+    phone: row.phone,
+    notes: row.notes,
+  }).catch((err) => console.error('[EmailAlert] Failed to dispatch leasing alert:', err.message));
 });
 
 // ── Admin: GET /api/admin/leasing-requests/stats ────────────────────────────

@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { pool } from '../db';
 import { validate } from '../middleware/validate';
-import { sendInquiryAck } from '../services/email';
+import { sendInquiryAck, sendAdminInquiryAlert } from '../services/email';
 
 export const inquiriesRouter = Router();
 export const adminInquiriesRouter = Router();
@@ -39,6 +39,17 @@ inquiriesRouter.post('/', validate(inquirySchema), async (req: Request, res: Res
     message: d.message,
     equipment_interests: d.equipment_interests,
   });
+
+  // Fire-and-forget real-time admin alert email
+  sendAdminInquiryAlert({
+    id: result.rows[0].id,
+    name: d.name,
+    company: d.company,
+    email: d.email,
+    phone: d.phone,
+    message: d.message,
+    equipment_interests: d.equipment_interests,
+  }).catch((err) => console.error('[EmailAlert] Failed to dispatch inquiry alert:', err.message));
 });
 
 // ── Admin: GET /api/admin/inquiries/stats ─────────────────

@@ -223,6 +223,13 @@ CREATE TABLE IF NOT EXISTS lubricant_requests (
 CREATE INDEX IF NOT EXISTS idx_lubricant_req_brand ON lubricant_requests(brand);
 CREATE INDEX IF NOT EXISTS idx_lubricant_req_status ON lubricant_requests(status);
 CREATE INDEX IF NOT EXISTS idx_lubricant_req_created ON lubricant_requests(created_at DESC);
+
+-- ── System Settings (Admin Notification & Alert Preferences) ──
+CREATE TABLE IF NOT EXISTS system_settings (
+  key         VARCHAR(100) PRIMARY KEY,
+  value       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 `;
 
 export const SEED_SQL = `-- Default admin user (password: mandtech_admin_2024)
